@@ -1,0 +1,30 @@
+@startuml
+skinparam backgroundColor LightYellow
+skinparam state {
+  StartColor MediumBlue
+  EndColor Red
+  BackgroundColor Olive
+  BackgroundColor<<Main>> Lightblue
+  BackgroundColor<<Error>> Red
+  BackgroundColor<<Suspended>> Magenta
+  BackgroundColor<<Transient>> LightGreen
+  BorderColor Gray
+  FontName Impact
+}
+state "UNHANDLED" as n <<Main>>
+state "CLAIMING" as c1 <<Error>>
+state "CLAIMED" as c <<Error>>
+state "HANDLING" as h <<Suspended>>
+
+
+[*] -down-> n: start/create
+n -down-> c1: after random(claimtime)
+n -right-> c: if recognized \n(claiming, claimed, handling)
+c1 -down-> c: if recognized claiming. \ntakes the task if was \nfirst to announce claiming
+c -> h: if recognized \n handling
+c -> n: if recognized \n dropping message
+c -> n: if neither (handling,\n claimed) during recogtime
+h -> c: if recognized \nclaimed
+h -> n: if recognized \ndropping
+}
+@enduml

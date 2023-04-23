@@ -1,6 +1,6 @@
 # KafkaClusteredTaskManager
 
-A fault-tolerant scheduler that allows scheduling of periodic tasks to a single node in a clustered environment, with the help of Kafka messaging system.
+A fault-tolerant scheduler that allows scheduling of periodic tasks to a single node in a clustered environment, with the sole help of Kafka messaging system. No other persistence is necessary.
 
 KafkaNodeTaskScheduler is designed to provide exclusive execution on a single node by scheduling tasks to run on that node, ensuring that no other nodes execute the same task simultaneously. The scheduler is fault-tolerant, meaning that it can handle node failures and redistribute the failed node's tasks to other nodes in the cluster.
 
