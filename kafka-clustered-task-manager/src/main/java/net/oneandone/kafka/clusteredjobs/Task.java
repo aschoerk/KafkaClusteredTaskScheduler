@@ -32,6 +32,8 @@ public interface Task {
      */
     long getPeriod();
 
+    long maxExecutionsOnNode();
+
     String getName();
 
     TaskStateEnum getLocalState();
@@ -53,4 +55,8 @@ public interface Task {
     void unclaim();
 
     Runnable getJob();
+
+    long getExecutionsOnNode();
+
+    Instant getLastExecutionOnNode();
 }

@@ -17,6 +17,10 @@ abstract class TaskBase implements Task {
     private Instant lastStartup;
     private Instant claimingTimestamp;
 
+    int executionsOnNode = 0;
+
+    private Node node;
+
     @Override
     public TaskStateEnum getLocalState() {
         return currentState;
@@ -29,20 +33,22 @@ abstract class TaskBase implements Task {
             case CLAIMING:
                 if(!TaskStateEnum.CLAIMING.equals(currentState)) {
                     // claiming initiated, now start waiting
-                    stateStarted = Instant.now();
+                    stateStarted = getNow();
                 }
                 currentState = stateToSet;
                 break;
             case HANDLING_BY_OTHER:
             case CLAIMED_BY_OTHER:
+                executionsOnNode = 0;
                 sawClaimedInfo();
                 setClaimingTimestamp(null);
                 currentState = stateToSet;
                 break;
             case HANDLING_BY_NODE:
-                if(currentState != TaskStateEnum.HANDLING_BY_OTHER) {
-                    stateStarted = Instant.now();
-                    lastStartup = Instant.now();
+                if(currentState != TaskStateEnum.HANDLING_BY_NODE) {
+                    executionsOnNode ++;
+                    stateStarted = getNow();
+                    lastStartup = getNow();
                 }
                 currentState = stateToSet;
                 break;
@@ -55,6 +61,10 @@ abstract class TaskBase implements Task {
         logger.info("Result  state: {}", stateToSet);
     }
 
+    private Instant getNow() {
+        return Instant.now(node.getClock());
+    }
+
     @Override
     public Instant getLastClaimedInfo() {
         return lastClaimedInfo;
@@ -62,7 +72,7 @@ abstract class TaskBase implements Task {
 
     @Override
     public void sawClaimedInfo() {
-        this.lastClaimedInfo = Instant.now();
+        this.lastClaimedInfo = getNow();
     }
 
     @Override
@@ -71,7 +81,7 @@ abstract class TaskBase implements Task {
             return stateStarted;
         }
         else {
-            throw new RuntimeException("Should not ask for claimingStarted if not CLAIMING");
+            throw new KctmException("Should not ask for claimingStarted if not CLAIMING");
         }
     }
 
@@ -91,7 +101,7 @@ abstract class TaskBase implements Task {
             return stateStarted;
         }
         else {
-            throw new RuntimeException("Should not ask for handlingStarted if not HANDLING");
+            throw new KctmException("Should not ask for handlingStarted if not HANDLING");
         }
     }
 
@@ -105,6 +115,11 @@ abstract class TaskBase implements Task {
     @Override
     public Instant getLastStartup() {
         return lastStartup;
+    }
+
+    @Override
+    public long getExecutionsOnNode() {
+        return executionsOnNode;
     }
 
 }

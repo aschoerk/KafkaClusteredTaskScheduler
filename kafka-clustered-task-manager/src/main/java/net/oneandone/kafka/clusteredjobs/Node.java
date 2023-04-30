@@ -3,7 +3,10 @@ package net.oneandone.kafka.clusteredjobs;
 import java.lang.management.ManagementFactory;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.IntSummaryStatistics;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,12 +23,13 @@ public class Node implements Stoppable {
     public static final long CLAIMED_SEND_PERIOD = 30 * 1000;
     public static final long HANDLING_SEND_PERIOD = 10 * 1000;
     public static final long MAX_AGE_OF_SIGNAL = 60 * 1000;
-
     public static final long MAX_CLAIMING_TIME = 10 * 1000;
 
     private static AtomicInteger nodeCounter = new AtomicInteger(0);
 
     private ArrayList<Stoppable> stoppables = new ArrayList<>();
+
+    private Clock clock = Clock.systemDefaultZone();
 
     private int nodeId;
 
@@ -52,10 +56,10 @@ public class Node implements Stoppable {
         try {
             hostname = Inet4Address.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+            throw new KctmException("Node cannot identify host", e);
         }
         processName = ManagementFactory.getRuntimeMXBean().getName();
-        this.sender = new Sender( syncTopic, this);
+        this.sender = new Sender(this);
 
 
     }
@@ -109,10 +113,18 @@ public class Node implements Stoppable {
         try {
             Thread.sleep(Node.CONSUMER_POLL_TIME + 1000);
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            throw new KctmException("During shutdown interrupted",e);
         }
         watchingThread.interrupt();
         signalsReceivingThread.interrupt();
         logger.info("Killed  node: {}", getUniqueNodeId());
+    }
+
+    public Clock getClock() {
+        return clock;
+    }
+
+    public void setClock(final Clock clock) {
+        this.clock = clock;
     }
 }

@@ -36,6 +36,11 @@ class HeartBeatTask extends TaskBase implements Task {
     }
 
     @Override
+    public long maxExecutionsOnNode() {
+        return 5;
+    }
+
+    @Override
     public String getName() {
         return "KafkaClusteredTaskManagerHeartBeat";
     }
@@ -50,7 +55,7 @@ class HeartBeatTask extends TaskBase implements Task {
             try {
                 Thread.sleep(this.getPeriod() / 5);
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                throw new KctmException("Heartbeat waiting interrupted", e);
             }
             log.info("ending   Heartbeat on {}", node);
             if (!running.compareAndSet(true, false)) {

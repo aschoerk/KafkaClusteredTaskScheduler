@@ -35,7 +35,7 @@ public class TaskWatcher extends StoppableBase {
                     switch (t.getLocalState()) {
                         case CLAIMED_BY_NODE: {
                             t.sawClaimedInfo();
-                            if(t.getLastStartup()== null || Instant.now().isAfter(t.getLastStartup().plus(t.getPeriod(), ChronoUnit.MILLIS))) {
+                            if(t.getLastStartup()== null || getNow().isAfter(t.getLastStartup().plus(t.getPeriod(), ChronoUnit.MILLIS))) {
                                 t.setLocalState(TaskStateEnum.HANDLING_BY_NODE);
                                 t.sawClaimedInfo();
                                 new Thread(() -> {
@@ -43,14 +43,14 @@ public class TaskWatcher extends StoppableBase {
                                 }).start();
                             }
                             else {
-                                if(Instant.now().isAfter(t.getLastClaimedInfo().plus(Node.CLAIMED_SEND_PERIOD, ChronoUnit.MILLIS))) {
+                                if(getNow().isAfter(t.getLastClaimedInfo().plus(Node.CLAIMED_SEND_PERIOD, ChronoUnit.MILLIS))) {
                                     sender.sendAsynchronous(t, CLAIMED_BY_ME);
                                 }
                             }
                         }
                         break;
                         case HANDLING_BY_NODE: {
-                            if(Instant.now().isAfter(t.getHandlingStarted().plus(node.HANDLING_SEND_PERIOD, ChronoUnit.MILLIS))) {
+                            if(getNow().isAfter(t.getHandlingStarted().plus(node.HANDLING_SEND_PERIOD, ChronoUnit.MILLIS))) {
                                 sender.sendAsynchronous(t, HANDLED_BY_ME);
                             }
                         }
@@ -59,10 +59,10 @@ public class TaskWatcher extends StoppableBase {
                             if(t.getClaimingTimestamp() == null) {
                                 final long timeToWaitBeforeClaiming = (long) (random() * Node.MAX_CLAIMING_TIME);
                                 logger.debug("Initiating {} on Node {}, waiting {} milliseconds before claiming", t.getName(), node.getUniqueNodeId(), timeToWaitBeforeClaiming);
-                                t.setClaimingTimestamp(Instant.now().plus(timeToWaitBeforeClaiming, ChronoUnit.MILLIS));
+                                t.setClaimingTimestamp(Instant.now(node.getClock()).plus(timeToWaitBeforeClaiming, ChronoUnit.MILLIS));
                             }
                             else {
-                                if(Instant.now().isAfter(t.getClaimingTimestamp())) {
+                                if(getNow().isAfter(t.getClaimingTimestamp())) {
                                     t.setLocalState(TaskStateEnum.CLAIMING);
                                     sender.sendAsynchronous(t, CLAIMING);
                                     logger.debug("Claiming {} on Node {}", t.getName(), node.getUniqueNodeId());
@@ -73,7 +73,7 @@ public class TaskWatcher extends StoppableBase {
                         break;
                         case HANDLING_BY_OTHER:
                         case CLAIMED_BY_OTHER:  // no node sent information about having claimed a task for more than Node.MAX_AGE_OF_SIGNAL milliseconds.
-                            if(Instant.now().isBefore(t.getLastClaimedInfo().plus(Node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS))) {
+                            if(getNow().isBefore(t.getLastClaimedInfo().plus(Node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS))) {
                                 break;
                             }
                             ;
@@ -98,5 +98,9 @@ public class TaskWatcher extends StoppableBase {
                 sender.sendAsynchronous(t, UNCLAIMED);
             }
         });
+    }
+
+    private Instant getNow() {
+        return Instant.now(node.getClock());
     }
 }

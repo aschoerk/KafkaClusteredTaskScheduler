@@ -23,8 +23,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,13 +37,12 @@ import org.slf4j.LoggerFactory;
  * @author aschoerk
  */
 public class SignalsWatcher extends StoppableBase {
+    private static final long SEARCH_SYNC_OFFSET_TRIGGER = 1000;
     Logger logger = LoggerFactory.getLogger(Node.class);
     private Node node;
     private Sender sender;
 
-    ConcurrentHashMap<NodesTaskSignal, NodesTaskSignal> lastSignalFromNode = new ConcurrentHashMap<>();
-
-    ConcurrentHashMap<String, ConcurrentHashMap<String, NodesTaskSignal>> signalsPerTask = new ConcurrentHashMap<>();
+    ConcurrentHashMap<String, ConcurrentHashMap<String, NodesTaskSignal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
 
 
     public SignalsWatcher(Node node, Sender sender) {
@@ -47,25 +50,77 @@ public class SignalsWatcher extends StoppableBase {
         this.sender = sender;
     }
 
+    Pair<TopicPartition, Long> findConsumerPosition(Map<String, Object> consumerConfig, long searchSyncOffsetTrigger) {
+        consumerConfig.put(MAX_POLL_RECORDS_CONFIG, 1);
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerConfig)) {
+            List<PartitionInfo> partitionInfo = consumer.listTopics().get(node.syncTopic);
+            if(partitionInfo != null && partitionInfo.size() != 1) {
+                throw new KctmException("Either topic " + node.syncTopic + " not found or more than one partition defined");
+            }
+            else {
+                PartitionInfo thePartitionInfo = partitionInfo.get(0);
+                TopicPartition partition = new TopicPartition(node.syncTopic, thePartitionInfo.partition());
+                consumer.assign(Collections.singletonList(partition));
+                // consumer.subscribe(Collections.singletonList(node.syncTopic));
+                Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
+                Map<TopicPartition, Long> endOffsets = consumer.endOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
+                if(endOffsets.size() != 1 && beginningOffsets.size() != 1) {
+                    throw new KctmException("Could not get information about sync Topic in time");
+                }
+                long endOffset = endOffsets.get(partition).longValue();
+                long beginningOffset = beginningOffsets.get(partition).longValue();
+                if((endOffset - beginningOffset) > searchSyncOffsetTrigger) {
+                    boolean lowerOffsetFound = false;
+                    while (!lowerOffsetFound) {
+                        long medium = beginningOffset + (endOffset - beginningOffset) / 2L;
+                        consumer.seek(partition, medium);
+                        ConsumerRecords<String, String> records = consumer.poll(1000);
+                        if(records.count() > 1) {
+                            throw new KctmException("Normally only one record should get returned using this config");
+                        }
+                        else if(records.count() == 0) {
+                            logger.warn("Expected record to be returned, repeat consume");
+                            continue;
+                        }
+                        final ConsumerRecord<String, String> record = records.iterator().next();
+                        Object event = KbXStream.jsonXStream.fromXML(record.value());
+                        if(!(event instanceof NodesTaskSignal)) {
+                            throw new KctmException("Expected only NodesTaskSignal Objects in sync-topic but was: " + event.getClass().getName());
+                        }
+                        final NodesTaskSignal signal = (NodesTaskSignal) event;
+                        if(signal.timestamp.isAfter(getNow().minus(node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS))) {
+                            endOffset = medium;
+                        }
+                        else {
+                            beginningOffset = medium;
+                        }
+                        lowerOffsetFound = endOffset - beginningOffset <= 1;
+                    }
+                    return Pair.of(partition, beginningOffset);
+                }
+                return Pair.of(partition, beginningOffset);
+            }
+        }
+        // get the earliest and latest offsets for the partition
+
+
+    }
+
+    private Instant getNow() {
+        return Instant.now(node.getClock());
+    }
+
     public void run() {
         initThreadName(this.getClass().getSimpleName());
-        Map<String, Object> syncingConsumerConfig = new HashMap<>();
-        syncingConsumerConfig.put(BOOTSTRAP_SERVERS_CONFIG, node.bootstrapServers);
-        syncingConsumerConfig.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        syncingConsumerConfig.put(VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        syncingConsumerConfig.put(MAX_POLL_RECORDS_CONFIG, 1);
-        syncingConsumerConfig.put(MAX_POLL_INTERVAL_MS_CONFIG, 5000);
-        syncingConsumerConfig.put(GROUP_ID_CONFIG, node.getUniqueNodeId());
-        syncingConsumerConfig.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
-        // This is required, otherwise kafka would automatically commit messages, even in the event
-        // of exceptions while publishing to mobile event hub. This would cause messages to be lost!
-        // (the setting may be disabled using the external configuration)
-        try (KafkaConsumer consumer = new KafkaConsumer<>(syncingConsumerConfig)) {
+
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node))) {
             consumer.subscribe(Arrays.asList(node.syncTopic));
+            Pair<TopicPartition, Long> startOffset = findConsumerPosition(getSyncingConsumerConfig(node), SEARCH_SYNC_OFFSET_TRIGGER);
+            consumer.seek(startOffset.getLeft(), startOffset.getRight());
             ConsumerRecords<String, String> records;
             while (!doShutdown()) {
                 records = consumer.poll(Duration.ofMillis(CONSUMER_POLL_TIME));
-                if (records.count() > 0) {
+                if(records.count() > 0) {
                     logger.debug("Node: {} found {} records", node.getUniqueNodeId(), records.count());
                     records.forEach(r -> {
                         if(node.taskPartition == null) {
@@ -74,31 +129,36 @@ public class SignalsWatcher extends StoppableBase {
                         else {
                             if(!node.taskPartition.equals(r.partition())) {
                                 logger.error("TaskManager may only synchronize via single-Partition Topic.");
-                                throw new RuntimeException("TaskManager may only synchronize via single-Partition Topic.");
+                                throw new KctmException("TaskManager may only synchronize via single-Partition Topic.");
                             }
                         }
-                        Object event = (NodesTaskSignal) KbXStream.jsonXStream.fromXML(r.value());
+                        Object event = KbXStream.jsonXStream.fromXML(r.value());
                         if(event instanceof NodesTaskSignal) {
                             NodesTaskSignal nodesTaskSignal = (NodesTaskSignal) event;
-                            nodesTaskSignal.currentOffset = r.offset();
-                            Task task = node.tasks.get(((NodesTaskSignal) event).taskName);
+                            nodesTaskSignal.setCurrentOffset(r.offset());
+                            Task task = node.tasks.get(nodesTaskSignal.taskName);
                             logger.debug("Record_Offset: {} Task: {} Received Signal {}", r.offset(), task.getName(), nodesTaskSignal);
                             if(task != null) {
-                                lastSignalFromNode.put(nodesTaskSignal, nodesTaskSignal);
-                                if(signalsPerTask.get(nodesTaskSignal.taskName) == null) {
-                                    signalsPerTask.put(nodesTaskSignal.taskName, new ConcurrentHashMap<>());
+                                if(lastSignalPerTaskAndNode.get(nodesTaskSignal.taskName) == null) {
+                                    lastSignalPerTaskAndNode.put(nodesTaskSignal.taskName, new ConcurrentHashMap<>());
                                 }
-                                signalsPerTask.get(nodesTaskSignal.taskName).put(nodesTaskSignal.nodeProcThreadId, nodesTaskSignal);
+                                NodesTaskSignal previousSignalFromThisNodeForThisTask = lastSignalPerTaskAndNode.get(nodesTaskSignal.taskName).get(nodesTaskSignal.nodeProcThreadId);
+                                if (previousSignalFromThisNodeForThisTask != null) {
+                                    if (previousSignalFromThisNodeForThisTask.getCurrentOffset().get() > nodesTaskSignal.getCurrentOffset().get() ) {
+                                        logger.warn("Handled older signal {} for Task later found: {}", nodesTaskSignal, previousSignalFromThisNodeForThisTask );
+                                    }
+                                }
+                                lastSignalPerTaskAndNode.get(nodesTaskSignal.taskName).put(nodesTaskSignal.nodeProcThreadId, nodesTaskSignal);
                             }
                             else {
                                 logger.warn("Received Signal from unknown task {}", nodesTaskSignal);
                             }
                         }
                         else {
-                            // ignore
+                            throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
                         }
                     });
-                    signalsPerTask.entrySet().forEach(e -> {
+                    lastSignalPerTaskAndNode.entrySet().forEach(e -> {
                         ConcurrentHashMap<String, NodesTaskSignal> taskInfo = e.getValue();
                         checkTaskState(e.getKey(), taskInfo);
                     });
@@ -106,7 +166,7 @@ public class SignalsWatcher extends StoppableBase {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        logger.info("Running for node: {} interrupted", node.getUniqueNodeId() );
+                        logger.info("Running for node: {} interrupted", node.getUniqueNodeId());
                         return;
                     }
                 }
@@ -114,12 +174,25 @@ public class SignalsWatcher extends StoppableBase {
         }
     }
 
+    static Map<String, Object> getSyncingConsumerConfig(final Node nodeP) {
+        Map<String, Object> syncingConsumerConfig = new HashMap<>();
+        syncingConsumerConfig.put(BOOTSTRAP_SERVERS_CONFIG, nodeP.bootstrapServers);
+        syncingConsumerConfig.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        syncingConsumerConfig.put(VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        syncingConsumerConfig.put(MAX_POLL_RECORDS_CONFIG, 100);
+        syncingConsumerConfig.put(MAX_POLL_INTERVAL_MS_CONFIG, 5000);
+        syncingConsumerConfig.put(GROUP_ID_CONFIG, nodeP.getUniqueNodeId());
+        syncingConsumerConfig.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
+        return syncingConsumerConfig;
+    }
+
     private void checkTaskState(String taskName, final ConcurrentHashMap<String, NodesTaskSignal> taskInfo) {
         // is task claimed?
         final TaskStateEnum localState = node.tasks.get(taskName).getLocalState();
 
         Map<TaskSignalEnum, List<NodesTaskSignal>> relevantTaskInfos = taskInfo.values().stream()
-                .filter(ti -> ti.timestamp.isAfter(Instant.now().minus(node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS)))
+                .filter(ti -> ti.timestamp.isAfter(Instant.now(node.getClock()).minus(node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS)))
+                .filter(ti -> !ti.isHandled())
                 .collect(Collectors.groupingBy(nodesTaskSignal -> nodesTaskSignal.signal));
 
         Arrays.stream(TaskSignalEnum.values()).forEach(k -> {
@@ -156,7 +229,7 @@ public class SignalsWatcher extends StoppableBase {
         }
         List<NodesTaskSignal> claimingNodes = relevantTaskInfos.get(TaskSignalEnum.CLAIMING);
         if(claimingNodes.size() > 0 && (localState == TaskStateEnum.CLAIMING || localState == TaskStateEnum.INITIATING)) {
-            claimingNodes.sort((t, t2) -> ((Long) (t.currentOffset)).compareTo(t2.currentOffset));
+            claimingNodes.sort((t1, t2) -> t1.before(t2) ? -1 : !t2.before(t1) ? 0 : 1);
             // if this node was the first to have sent CLAIMING
             if(claimingNodes.get(0).nodeProcThreadId.equals(node.getUniqueNodeId())) {
                 final Task task = node.tasks.get(taskName);

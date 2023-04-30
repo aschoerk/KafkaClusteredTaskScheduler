@@ -21,17 +21,23 @@ public class Sender {
     private final String syncTopic;
     private final KafkaProducer syncProducer;
 
-    public Sender(String syncTopic, Node node) {
+    public Sender(Node node) {
         this.node = node;
-        this.syncTopic = syncTopic;
+        this.syncTopic = node.syncTopic;
+        Map<String, Object> config = getConfig(node);
+
+        this.syncProducer = new KafkaProducer(config);
+    }
+
+    static Map<String, Object> getConfig(final Node node) {
         Map<String, Object> config = new HashMap<>();
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, node.bootstrapServers);
         config.put(ProducerConfig.ACKS_CONFIG, "1");
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-
-        this.syncProducer = new KafkaProducer(config);
+        return config;
     }
+
     void sendAsynchronous(Task t, TaskSignalEnum signal) {
         new Thread(() -> {
             sendSynchronous(t, signal);
@@ -44,10 +50,12 @@ public class Sender {
         toSend.taskName = t.getName();
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
-        toSend.timestamp = Instant.now();
-        toSend.currentOffset = -1;
+        toSend.timestamp = Instant.now(node.getClock());
         syncProducer.send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
         syncProducer.flush();
     }
 
+    KafkaProducer getSyncProducer() {
+        return syncProducer;
+    }
 }

@@ -11,20 +11,36 @@ skinparam state {
   BorderColor Gray
   FontName Impact
 }
-state "UNHANDLED" as n <<Main>>
-state "CLAIMING" as c1 <<Error>>
-state "CLAIMED" as c <<Error>>
-state "HANDLING" as h <<Suspended>>
 
 
-[*] -down-> n: start/create
-n -down-> c1: after random(claimtime)
-n -right-> c: if recognized \n(claiming, claimed, handling)
-c1 -down-> c: if recognized claiming. \ntakes the task if was \nfirst to announce claiming
-c -> h: if recognized \n handling
-c -> n: if recognized \n dropping message
-c -> n: if neither (handling,\n claimed) during recogtime
-h -> c: if recognized \nclaimed
-h -> n: if recognized \ndropping
+state "INITIATING" as i <<Main>>
+state "CLAIMING" as cg <<Transient>>
+state "CLAIMED_BY_NODE(ME)" as cn <<Suspended>>
+state "CLAIMED_BY_OTHER" as co <<Suspended>>
+state "HANDLING_BY_NODE(ME)" as hn <<Suspended>>
+state "HANDLING_BY_OTHER" as ho <<Suspended>>
+state "ERROR" as e <<Error>>
+
+
+[*] -down-> i: start/create Task on node
+
+i -> co: <b>CLAIMING_O</b>,\n<b>CLAIMED_O</b>\narrived
+i -> ho: <b>HANDLING_O</b>\narrived
+i -down--> cg: waited for random time \ndepending on task period\nto minimize collisions
+note right of cg: node did send\nsignal <b>CLAIMING</b>\n to claim the task to\n the topic
+cg --> cn: <b>CLAIMING_I</b> arrived\nas first
+note left of cn: node did claim the task\nbecause it clearly was\n the first <b>CLAIMING</b> signal\n(lowest offset) on the topic
+cg --> co: <b>CLAIMING_O</b>,\n<b>CLAIMED_O</b>,\n<b>HANDLING_O</b> arrived
+note left of co: node did not claim,\neither it was not the first <b>CLAIMING</b> signal \n(lowest offset) arrived via the topic,\nor signal <b>CLAIMED</b> arrived
+cn -up-> hn: according to schedule,\nnode started the task\nsignal <b>HANDLING_I</b> sent
+cn -down-> e: <b>CLAIMED_O,</b> \n<b>HANDLING_O</b> arrived
+hn -down-> cn: task was completed\nsignal <b>CLAIMED_I</b> sent
+hn -up-> i: max number of \nexecutions on node,\nsignal <b>UNCLAIM_I</b> sent
+hn -down-> e: <b>CLAIMED_O,</b> \n<b>HANDLING_O</b> arrived
+co -up-> ho: <b>HANDLING_O</b>\narrived
+co -left-> e: <b>CLAIMED_I</b>,\n<b>HANDLING_I</b>\narrived
+ho -> co: <b>CLAIMED_O</b> arrived, \nother node completed task, \nkeeps it
+note left of ho: other node is currently \nexecuting the task
+ho -up-> i: <b>UNCLAIM_O</b> arrived\nother node completed task,\ndoes not keep it claimed
 }
 @enduml
