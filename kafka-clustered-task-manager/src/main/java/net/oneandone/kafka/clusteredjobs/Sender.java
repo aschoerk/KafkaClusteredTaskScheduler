@@ -38,15 +38,16 @@ public class Sender {
         return config;
     }
 
-    void sendAsynchronous(Task t, TaskSignalEnum signal) {
+    void sendAsynchronous(Task t, SignalEnum signal) {
         new Thread(() -> {
             sendSynchronous(t, signal);
         }).start();
     }
 
-    void sendSynchronous(final Task t, final TaskSignalEnum signal) {
-        logger.info("Sending from Node: {} for task {} Signal: {}", node.getUniqueNodeId(), t.getName(), signal);
-        NodesTaskSignal toSend = new NodesTaskSignal();
+    void sendSynchronous(final Task t, final SignalEnum signal) {
+        logger.info("Sending from N: {} for task {} int State: {} Signal: {}",
+                                        node.getUniqueNodeId(), t.getName(), t.getLocalState(), signal);
+        Signal toSend = new Signal();
         toSend.taskName = t.getName();
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;

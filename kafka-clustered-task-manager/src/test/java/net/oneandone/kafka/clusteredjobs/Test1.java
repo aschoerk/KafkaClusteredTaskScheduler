@@ -41,30 +41,80 @@ public class Test1 extends TestBase{
      })
      void canPositionBeforeWatchingSignals(int seconds, int positionInSeconds,int result) {
          Node node = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
-         Task task = new HeartBeatTask(node.getUniqueNodeId());
+         Task task = new HeartBeatTask(node);
          node.register(task);
          final Clock baseClock = Clock.fixed(Instant.now().minus(200, ChronoUnit.DAYS), ZoneId.of("CET"));
          node.setClock(baseClock);
 
-         Sender sender = new Sender(node);
          for(int i = 0; i < seconds; i++ ) {
              node.setClock(Clock.offset(baseClock, Duration.ofSeconds(i)));
-             sender.sendSynchronous(task, TaskSignalEnum.CLAIMING);
+             node.getSender().sendSynchronous(task, SignalEnum.CLAIMING);
          }
 
 
-         SignalsWatcher signalsWatcher = new SignalsWatcher(node, sender);
+         SignalsWatcher signalsWatcher = new SignalsWatcher(node);
          node.setClock(Clock.offset(baseClock, Duration.ofSeconds(positionInSeconds)));
          Pair<TopicPartition, Long> position = signalsWatcher.findConsumerPosition(SignalsWatcher.getSyncingConsumerConfig(node), 10);
          Assertions.assertEquals(result, position.getRight());
      }
 
     @Test
+    void testUsingOneNode() throws InterruptedException {
+        Node node1 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
+        node1.register(new HeartBeatTask(node1));
+        node1.run();
+        int count = 0;
+        while (count++ < 20) {
+            Thread.sleep(10000);
+            logger.info("TestLoop {}", Instant.now());
+        }
+        node1.shutdown();
+    }
+
+    @Test
+    void testUsingTwoNodes() throws InterruptedException {
+        Node node1 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
+        node1.register(new HeartBeatTask(node1));
+        node1.run();
+        Node node2 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
+        node2.register(new HeartBeatTask(node2));
+        node2.run();
+        int count = 0;
+        while (count++ < 20) {
+            Thread.sleep(10000);
+            logger.info("TestLoop {}", Instant.now());
+        }
+        node1.shutdown();
+        node2.shutdown();
+    }
+
+    @Test
+    void testUsingTwoNodesShuttingDown() throws InterruptedException {
+        Node node1 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
+        node1.register(new HeartBeatTask(node1));
+        node1.run();
+        Node node2 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
+        node2.register(new HeartBeatTask(node2));
+        node2.run();
+        int count = 0;
+        while (count++ < 20) {
+            Thread.sleep(3000);
+            logger.info("TestLoop {}", Instant.now());
+            node2.shutdown();
+            node2 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
+            node2.register(new HeartBeatTask(node2));
+            node2.run();
+        }
+        node1.shutdown();
+        node2.shutdown();
+    }
+
+    @Test
     void test() throws InterruptedException {
         Node node1 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
-        node1.register(new HeartBeatTask(node1.getUniqueNodeId()));
+        node1.register(new HeartBeatTask(node1));
         Node node2 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
-        node2.register(new HeartBeatTask(node2.getUniqueNodeId()));
+        node2.register(new HeartBeatTask(node2));
 
         node1.run();
         node2.run();
@@ -75,12 +125,12 @@ public class Test1 extends TestBase{
             node1.shutdown();
             Thread.sleep(1000);
             node1 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
-            node1.register(new HeartBeatTask(node1.getUniqueNodeId()));
+            node1.register(new HeartBeatTask(node1));
             node1.run();
             node2.shutdown();
             Thread.sleep(1000);
             node2 = new Node(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers());
-            node2.register(new HeartBeatTask(node2.getUniqueNodeId()));
+            node2.register(new HeartBeatTask(node2));
             node2.run();
         }
     }

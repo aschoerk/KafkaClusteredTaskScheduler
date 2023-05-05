@@ -13,13 +13,9 @@ abstract class TaskBase implements Task {
 
     private TaskStateEnum currentState;
     private Instant lastClaimedInfo;
-    private Instant stateStarted;
     private Instant lastStartup;
-    private Instant claimingTimestamp;
 
     int executionsOnNode = 0;
-
-    private Node node;
 
     @Override
     public TaskStateEnum getLocalState() {
@@ -28,41 +24,27 @@ abstract class TaskBase implements Task {
 
     @Override
     public void setLocalState(final TaskStateEnum stateToSet) {
-        logger.info("Setting state: {}", stateToSet);
+        logger.info("Task {} Setting state: {} from state: {}", this.getName(),  stateToSet, getLocalState());
         switch (stateToSet) {
-            case CLAIMING:
-                if(!TaskStateEnum.CLAIMING.equals(currentState)) {
-                    // claiming initiated, now start waiting
-                    stateStarted = getNow();
-                }
-                currentState = stateToSet;
-                break;
+            case INITIATING:
+            case ERROR:
             case HANDLING_BY_OTHER:
             case CLAIMED_BY_OTHER:
                 executionsOnNode = 0;
                 sawClaimedInfo();
-                setClaimingTimestamp(null);
-                currentState = stateToSet;
                 break;
             case HANDLING_BY_NODE:
                 if(currentState != TaskStateEnum.HANDLING_BY_NODE) {
                     executionsOnNode ++;
-                    stateStarted = getNow();
                     lastStartup = getNow();
-                }
-                currentState = stateToSet;
-                break;
-            case UNCLAIM:
-                if(currentState == TaskStateEnum.CLAIMED_BY_NODE || currentState == TaskStateEnum.HANDLING_BY_NODE) {
-                    currentState = TaskStateEnum.UNCLAIM;
                 }
                 break;
         }
-        logger.info("Result  state: {}", stateToSet);
+        currentState = stateToSet;
     }
 
     private Instant getNow() {
-        return Instant.now(node.getClock());
+        return getNode().getNow();
     }
 
     @Override
@@ -76,39 +58,12 @@ abstract class TaskBase implements Task {
     }
 
     @Override
-    public Instant getClaimingSet() {
-        if(currentState.equals(TaskStateEnum.CLAIMING)) {
-            return stateStarted;
-        }
-        else {
-            throw new KctmException("Should not ask for claimingStarted if not CLAIMING");
-        }
-    }
-
-    @Override
-    public Instant getClaimingTimestamp() {
-        return claimingTimestamp;
-    }
-
-    @Override
-    public void setClaimingTimestamp(final Instant claimingTimestampP) {
-        this.claimingTimestamp = claimingTimestampP;
-    }
-
-    @Override
     public Instant getHandlingStarted() {
         if(currentState.equals(TaskStateEnum.HANDLING_BY_NODE)) {
-            return stateStarted;
+            return lastStartup;
         }
         else {
             throw new KctmException("Should not ask for handlingStarted if not HANDLING");
-        }
-    }
-
-    @Override
-    public void unclaim() {
-        if(getLocalState() == TaskStateEnum.CLAIMED_BY_NODE || getLocalState() == TaskStateEnum.HANDLING_BY_NODE) {
-            setLocalState(TaskStateEnum.UNCLAIM);
         }
     }
 
@@ -122,4 +77,10 @@ abstract class TaskBase implements Task {
         return executionsOnNode;
     }
 
+    @Override
+    public String toString() {
+        return "TaskBase{" +
+               "currentState=" + currentState +
+               '}';
+    }
 }

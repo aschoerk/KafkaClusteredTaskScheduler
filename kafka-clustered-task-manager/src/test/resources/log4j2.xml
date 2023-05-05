@@ -9,7 +9,7 @@
         <Root level="warn">
             <AppenderRef ref="Console"/>
         </Root>
-        <Logger name="net.oneandone.kafka.clusteredjobs" level="TRACE" additivity="false">
+        <Logger name="net.oneandone.kafka.clusteredjobs" level="WARN" additivity="false">
             <AppenderRef ref="Console"/>
         </Logger>
     </Loggers>

@@ -1,5 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -12,27 +14,32 @@ class HeartBeatTask extends TaskBase implements Task {
 
     private static AtomicBoolean running = new AtomicBoolean(false);
 
-    private final String node;
+    private final Node node;
     Logger log = LoggerFactory.getLogger(Node.class);
 
-    HeartBeatTask(String node) {
+    HeartBeatTask(Node node) {
         this.node = node;
     }
 
     @Override
-    public long getInitialTimestamp() {
-        return 1682074899000L;
+    public Instant getInitialTimestamp() {
+        return Instant.ofEpochMilli(1682074899000L);
     }
 
     @Override
-    public long getInitialDelay() {
-        return 10000;
+    public Duration getInitialDelay() {
+        return Duration.ofMillis(10000);
     }
 
 
     @Override
-    public long getPeriod() {
-        return 5000;
+    public Duration getPeriod() {
+        return Duration.ofMillis(200);
+    }
+
+    @Override
+    public Duration getClaimedSignalPeriod() {
+        return Duration.ofSeconds(1);
     }
 
     @Override
@@ -46,22 +53,40 @@ class HeartBeatTask extends TaskBase implements Task {
     }
 
     @Override
+    public Node getNode() {
+        return node;
+    }
+
+    static AtomicBoolean entered = new AtomicBoolean(false);
+
+    @Override
     public Runnable getJob() {
         return () -> {
-            if (!running.compareAndSet(false, true)) {
-                log.error("heartbeat on {} started a second time", node);
+            if (!entered.compareAndSet(false, true)) {
+                logger.error("expected false entering heartbeat");
             }
-            log.info("starting Heartbeat on {}",node);
+            final String uniqueNodeId = node.getUniqueNodeId();
+            if (!running.compareAndSet(false, true)) {
+                log.error("heartbeat on {} started a second time", uniqueNodeId);
+            }
+            log.info("starting Heartbeat on {}", uniqueNodeId);
             try {
-                Thread.sleep(this.getPeriod() / 5);
+                Thread.sleep(this.getPeriod().toMillis() / 5);
             } catch (InterruptedException e) {
                 throw new KctmException("Heartbeat waiting interrupted", e);
             }
-            log.info("ending   Heartbeat on {}", node);
+            log.info("ending   Heartbeat on {}", uniqueNodeId);
             if (!running.compareAndSet(true, false)) {
-                log.error("heartbeat on {} ended  a second time", node);
+                log.error("heartbeat on {} ended  a second time", uniqueNodeId);
+            }
+            if (!entered.compareAndSet(true, false)) {
+                logger.error("expected true exiting heartbeat");
             }
 
         };
     }
+
+
+
+
 }

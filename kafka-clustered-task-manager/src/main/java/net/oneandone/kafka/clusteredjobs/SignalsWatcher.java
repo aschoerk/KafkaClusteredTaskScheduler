@@ -1,8 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
 import static net.oneandone.kafka.clusteredjobs.Node.CONSUMER_POLL_TIME;
-import static net.oneandone.kafka.clusteredjobs.TaskSignalEnum.CLAIMED_BY_ME;
-import static net.oneandone.kafka.clusteredjobs.TaskSignalEnum.HANDLED_BY_ME;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
@@ -14,14 +12,13 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZE
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -33,6 +30,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 /**
  * @author aschoerk
  */
@@ -40,14 +38,12 @@ public class SignalsWatcher extends StoppableBase {
     private static final long SEARCH_SYNC_OFFSET_TRIGGER = 1000;
     Logger logger = LoggerFactory.getLogger(Node.class);
     private Node node;
-    private Sender sender;
+    ConcurrentHashMap<String, ConcurrentHashMap<String, Signal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
+    // no need to be threadsafe yet
 
-    ConcurrentHashMap<String, ConcurrentHashMap<String, NodesTaskSignal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
 
-
-    public SignalsWatcher(Node node, Sender sender) {
+    public SignalsWatcher(Node node) {
         this.node = node;
-        this.sender = sender;
     }
 
     Pair<TopicPartition, Long> findConsumerPosition(Map<String, Object> consumerConfig, long searchSyncOffsetTrigger) {
@@ -84,10 +80,10 @@ public class SignalsWatcher extends StoppableBase {
                         }
                         final ConsumerRecord<String, String> record = records.iterator().next();
                         Object event = KbXStream.jsonXStream.fromXML(record.value());
-                        if(!(event instanceof NodesTaskSignal)) {
-                            throw new KctmException("Expected only NodesTaskSignal Objects in sync-topic but was: " + event.getClass().getName());
+                        if(!(event instanceof Signal)) {
+                            throw new KctmException("Expected only Signal Objects in sync-topic but was: " + event.getClass().getName());
                         }
-                        final NodesTaskSignal signal = (NodesTaskSignal) event;
+                        final Signal signal = (Signal) event;
                         if(signal.timestamp.isAfter(getNow().minus(node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS))) {
                             endOffset = medium;
                         }
@@ -110,63 +106,93 @@ public class SignalsWatcher extends StoppableBase {
         return Instant.now(node.getClock());
     }
 
+
+    static class OffsetContainer {
+        Set<Long> offsetSet1 = new HashSet<>();
+        Set<Long> offsetSet2 = new HashSet<>();
+        boolean useSetOne = true;
+    }
+
     public void run() {
         initThreadName(this.getClass().getSimpleName());
 
+        final OffsetContainer oC = new OffsetContainer();
+
+
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node))) {
-            consumer.subscribe(Arrays.asList(node.syncTopic));
             Pair<TopicPartition, Long> startOffset = findConsumerPosition(getSyncingConsumerConfig(node), SEARCH_SYNC_OFFSET_TRIGGER);
+            consumer.assign(Collections.singletonList(startOffset.getLeft()));
             consumer.seek(startOffset.getLeft(), startOffset.getRight());
             ConsumerRecords<String, String> records;
             while (!doShutdown()) {
                 records = consumer.poll(Duration.ofMillis(CONSUMER_POLL_TIME));
                 if(records.count() > 0) {
-                    logger.debug("Node: {} found {} records", node.getUniqueNodeId(), records.count());
+                    logger.debug("N: {} found {} records", node.getUniqueNodeId(), records.count());
                     records.forEach(r -> {
-                        if(node.taskPartition == null) {
-                            node.taskPartition = r.partition();
-                        }
-                        else {
-                            if(!node.taskPartition.equals(r.partition())) {
-                                logger.error("TaskManager may only synchronize via single-Partition Topic.");
-                                throw new KctmException("TaskManager may only synchronize via single-Partition Topic.");
+                        if (oC.offsetSet1.contains(r.offset()) || oC.offsetSet2.contains(r.offset())) {
+                            logger.error("Repeated offset: {}");
+                        } else {
+                            if (oC.useSetOne) {
+                                oC.offsetSet1.add(r.offset());
+                                if (oC.offsetSet1.size() > 100) {
+                                    oC.useSetOne = false;
+                                    oC.offsetSet2.clear();
+                                }
+                            } else {
+                                oC.offsetSet2.add(r.offset());
+                                if (oC.offsetSet2.size() > 100) {
+                                    oC.useSetOne = true;
+                                    oC.offsetSet1.clear();
+                                }
                             }
-                        }
-                        Object event = KbXStream.jsonXStream.fromXML(r.value());
-                        if(event instanceof NodesTaskSignal) {
-                            NodesTaskSignal nodesTaskSignal = (NodesTaskSignal) event;
-                            nodesTaskSignal.setCurrentOffset(r.offset());
-                            Task task = node.tasks.get(nodesTaskSignal.taskName);
-                            logger.debug("Record_Offset: {} Task: {} Received Signal {}", r.offset(), task.getName(), nodesTaskSignal);
-                            if(task != null) {
-                                if(lastSignalPerTaskAndNode.get(nodesTaskSignal.taskName) == null) {
-                                    lastSignalPerTaskAndNode.put(nodesTaskSignal.taskName, new ConcurrentHashMap<>());
-                                }
-                                NodesTaskSignal previousSignalFromThisNodeForThisTask = lastSignalPerTaskAndNode.get(nodesTaskSignal.taskName).get(nodesTaskSignal.nodeProcThreadId);
-                                if (previousSignalFromThisNodeForThisTask != null) {
-                                    if (previousSignalFromThisNodeForThisTask.getCurrentOffset().get() > nodesTaskSignal.getCurrentOffset().get() ) {
-                                        logger.warn("Handled older signal {} for Task later found: {}", nodesTaskSignal, previousSignalFromThisNodeForThisTask );
-                                    }
-                                }
-                                lastSignalPerTaskAndNode.get(nodesTaskSignal.taskName).put(nodesTaskSignal.nodeProcThreadId, nodesTaskSignal);
+                            if(node.taskPartition == null) {
+                                node.taskPartition = r.partition();
                             }
                             else {
-                                logger.warn("Received Signal from unknown task {}", nodesTaskSignal);
+                                if(!node.taskPartition.equals(r.partition())) {
+                                    logger.error("TaskManager may only synchronize via single-Partition Topic.");
+                                    throw new KctmException("TaskManager may only synchronize via single-Partition Topic.");
+                                }
+                            }
+                            Object event = KbXStream.jsonXStream.fromXML(r.value());
+                            if(event instanceof Signal) {
+                                Signal signal = (Signal) event;
+                                signal.setCurrentOffset(r.offset());
+                                Task task = node.tasks.get(signal.taskName);
+                                logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(), task.getName(), task.getLocalState(), signal.nodeProcThreadId, signal.signal);
+                                if(task != null) {
+                                    if(lastSignalPerTaskAndNode.get(signal.taskName) == null) {
+                                        lastSignalPerTaskAndNode.put(signal.taskName, new ConcurrentHashMap<>());
+                                    }
+                                    Signal previousSignalFromThisNodeForThisTask = lastSignalPerTaskAndNode.get(signal.taskName).get(signal.nodeProcThreadId);
+                                    if(previousSignalFromThisNodeForThisTask != null) {
+                                        if(previousSignalFromThisNodeForThisTask.getCurrentOffset().get() > signal.getCurrentOffset().get()) {
+                                            logger.warn("Handled older signal {} for Task later found: {}", signal, previousSignalFromThisNodeForThisTask);
+                                        }
+                                    }
+                                    lastSignalPerTaskAndNode.get(signal.taskName).put(signal.nodeProcThreadId, signal);
+                                }
+                                else {
+                                    logger.warn("Received Signal from unknown task {}", signal);
+                                }
+                            }
+                            else {
+                                throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
                             }
                         }
-                        else {
-                            throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
-                        }
                     });
+                    logger.info("Received {} signals",lastSignalPerTaskAndNode.entrySet().size());
                     lastSignalPerTaskAndNode.entrySet().forEach(e -> {
-                        ConcurrentHashMap<String, NodesTaskSignal> taskInfo = e.getValue();
-                        checkTaskState(e.getKey(), taskInfo);
+                        node.getSignalHandler().handle(e.getKey(), e.getValue());
                     });
-
+                    lastSignalPerTaskAndNode.clear();
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        logger.info("Running for node: {} interrupted", node.getUniqueNodeId());
+                        if (!doShutdown())
+                            logger.error("SignalsWatcher N: got interrupted {}",node.getUniqueNodeId(), e);
+                        else
+                            logger.info("SignalsWatcher N: got interrupted {}",node.getUniqueNodeId(), e);
                         return;
                     }
                 }
@@ -186,59 +212,4 @@ public class SignalsWatcher extends StoppableBase {
         return syncingConsumerConfig;
     }
 
-    private void checkTaskState(String taskName, final ConcurrentHashMap<String, NodesTaskSignal> taskInfo) {
-        // is task claimed?
-        final TaskStateEnum localState = node.tasks.get(taskName).getLocalState();
-
-        Map<TaskSignalEnum, List<NodesTaskSignal>> relevantTaskInfos = taskInfo.values().stream()
-                .filter(ti -> ti.timestamp.isAfter(Instant.now(node.getClock()).minus(node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS)))
-                .filter(ti -> !ti.isHandled())
-                .collect(Collectors.groupingBy(nodesTaskSignal -> nodesTaskSignal.signal));
-
-        Arrays.stream(TaskSignalEnum.values()).forEach(k -> {
-            if(!relevantTaskInfos.containsKey(k)) relevantTaskInfos.put(k, Collections.emptyList());
-        });
-
-        if(relevantTaskInfos.get(HANDLED_BY_ME).size() > 1) {
-            logger.error(relevantTaskInfos.get(HANDLED_BY_ME).stream().map(s -> s.nodeProcThreadId).reduce("Multiple handlers: ",
-                    (s, s2) -> s += ";" + s2));
-        }
-
-        List<NodesTaskSignal> nodesWhichClaimed = Stream.concat(relevantTaskInfos.get(CLAIMED_BY_ME).stream(), relevantTaskInfos.get(HANDLED_BY_ME).stream()).collect(Collectors.toList());
-
-        if(nodesWhichClaimed.size() == 1) {
-            node.tasks.get(taskName).sawClaimedInfo();
-            final NodesTaskSignal claimedSignal = nodesWhichClaimed.get(0);
-            if(localState == TaskStateEnum.CLAIMED_BY_NODE || localState == TaskStateEnum.HANDLING_BY_NODE) {
-                if(!claimedSignal.nodeProcThreadId.equals(node.getUniqueNodeId())) {
-                    logger.error("I {} thought to have claimed task {} but claimed by {} removing it.", node.getUniqueNodeId(), claimedSignal.taskName, claimedSignal.nodeProcThreadId);
-                    node.tasks.get(claimedSignal.taskName).setLocalState(TaskStateEnum.UNCLAIM);
-                    return;
-                }
-            }
-            else if(claimedSignal.nodeProcThreadId.equals(node.getUniqueNodeId())) {
-                logger.error("I {} received signal to have claimed task {} but is not there.", node.getUniqueNodeId(), claimedSignal.taskName, claimedSignal.nodeProcThreadId);
-            }
-        }
-        else if(nodesWhichClaimed.size() == 0) {
-            logger.info("Nobody claimed task {}", taskName);
-        }
-        else if(nodesWhichClaimed.size() > 1) {
-            node.tasks.get(taskName).sawClaimedInfo();
-            logger.error("Task {} claimed by multiple nodes {}", taskName, nodesWhichClaimed.stream().map(ti -> ti.nodeProcThreadId).collect(Collectors.joining(",")));
-        }
-        List<NodesTaskSignal> claimingNodes = relevantTaskInfos.get(TaskSignalEnum.CLAIMING);
-        if(claimingNodes.size() > 0 && (localState == TaskStateEnum.CLAIMING || localState == TaskStateEnum.INITIATING)) {
-            claimingNodes.sort((t1, t2) -> t1.before(t2) ? -1 : !t2.before(t1) ? 0 : 1);
-            // if this node was the first to have sent CLAIMING
-            if(claimingNodes.get(0).nodeProcThreadId.equals(node.getUniqueNodeId())) {
-                final Task task = node.tasks.get(taskName);
-                task.setLocalState(TaskStateEnum.CLAIMED_BY_NODE);
-                sender.sendAsynchronous(task, CLAIMED_BY_ME);
-            }
-            else {
-                node.tasks.get(taskName).setLocalState(TaskStateEnum.CLAIMED_BY_OTHER);
-            }
-        }
-    }
 }

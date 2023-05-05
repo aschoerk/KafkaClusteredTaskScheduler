@@ -8,7 +8,7 @@ import java.util.Optional;
 /**
  *
  */
-public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
+public class Signal implements Comparable<Signal> {
     /**
      * identifies the classname intended to execute the task. Must support the interface
      */
@@ -17,7 +17,7 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
     /**
      * signal intention of a statechange
      */
-    TaskSignalEnum signal;
+    SignalEnum signal;
 
     /**
      * identifies an instance able to execute the task. The classname must be available and be runnable
@@ -35,6 +35,20 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
 
     Clock clock;
 
+    protected Signal(final Task task, final SignalEnum signal) {
+        this.taskName = task.getName();
+        this.signal = signal;
+        this.nodeProcThreadId = task.getNode().getUniqueNodeId();
+        this.timestamp = task.getNode().getNow();
+        this.currentOffset = -1L;
+    }
+
+    public Signal() {
+
+    }
+
+
+
     public Optional<Long> getCurrentOffset() {
         return Optional.ofNullable(currentOffset);
     }
@@ -43,11 +57,11 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
         this.currentOffset = currentOffsetP;
     }
 
-    boolean before(NodesTaskSignal nodesTaskSignal) {
-        if (currentOffset == null || nodesTaskSignal.currentOffset == null) {
+    boolean before(Signal signal) {
+        if (currentOffset == null || signal.currentOffset == null) {
             throw new KctmException("Before only possible if offset is set in signal after receiving.");
         }
-        return currentOffset < nodesTaskSignal.currentOffset;
+        return currentOffset < signal.currentOffset;
     }
 
     @Override
@@ -58,7 +72,7 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
         if((o == null) || (getClass() != o.getClass())) {
             return false;
         }
-        NodesTaskSignal that = (NodesTaskSignal) o;
+        Signal that = (Signal) o;
         return taskName.equals(that.taskName) && nodeProcThreadId.equals(that.nodeProcThreadId);
     }
 
@@ -71,7 +85,7 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
 
     @Override
     public String toString() {
-        return "NodesTaskSignal{" +
+        return "Signal{" +
                "taskName='" + taskName + '\'' +
                ", signal=" + signal +
                ", nodeProcThreadId='" + nodeProcThreadId + '\'' +
@@ -80,7 +94,7 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
     }
 
     @Override
-    public int compareTo(final NodesTaskSignal o) {
+    public int compareTo(final Signal o) {
         if (this.currentOffset == null || o.currentOffset == null || this.currentOffset == o.currentOffset) {
             throw new KctmException("NodeTaskSignal not comparable if offset is not set");
         } else {
@@ -91,4 +105,10 @@ public class NodesTaskSignal implements Comparable<NodesTaskSignal> {
     public boolean isHandled() {
         return handled;
     }
+
+    public boolean equalNode(final Node node) {
+        return node.getUniqueNodeId().equals(this.nodeProcThreadId);
+    }
+
+
 }

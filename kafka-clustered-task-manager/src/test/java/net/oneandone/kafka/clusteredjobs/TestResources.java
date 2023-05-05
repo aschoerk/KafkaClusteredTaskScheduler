@@ -67,7 +67,8 @@ public class TestResources {
 
 
     public void stopKafkaCluster() {
-        cluster.shutdown();
+        if (cluster != null)
+            cluster.shutdown();
     }
 
     public TestCluster getCluster() {

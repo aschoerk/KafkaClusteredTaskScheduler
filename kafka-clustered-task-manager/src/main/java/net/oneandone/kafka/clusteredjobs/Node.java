@@ -6,7 +6,8 @@ import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.IntSummaryStatistics;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -33,7 +34,6 @@ public class Node implements Stoppable {
 
     private int nodeId;
 
-    public final Sender sender;
     final String syncTopic;
     Logger log = LoggerFactory.getLogger(Node.class);
 
@@ -42,12 +42,17 @@ public class Node implements Stoppable {
     private final String hostname;
     private final String processName;
     private Thread signalsReceivingThread;
-    private Thread watchingThread;
+    private Thread pendingHandlerThread;
     final String bootstrapServers;
 
     ConcurrentHashMap<String, Task> tasks = new ConcurrentHashMap<>();
 
     Integer taskPartition = null;
+    private transient Sender sender;
+    private transient SignalHandler signalHandler;
+    private transient PendingHandler pendingHandler;
+
+    private Set<Thread> handlerThreads = new HashSet<>();
 
 
     public Node(String syncTopic, String bootstrapServers) {
@@ -59,16 +64,46 @@ public class Node implements Stoppable {
             throw new KctmException("Node cannot identify host", e);
         }
         processName = ManagementFactory.getRuntimeMXBean().getName();
-        this.sender = new Sender(this);
+    }
 
+    Sender getSender() {
+        if(sender == null) {
+            synchronized (this) {
+                if(sender == null) {
+                    sender = new Sender(this);
+                }
+            }
+        }
+        return sender;
+    }
 
+    SignalHandler getSignalHandler() {
+        if(signalHandler == null) {
+            synchronized (this) {
+                if(signalHandler == null) {
+                    signalHandler = new SignalHandler(this);
+                }
+            }
+        }
+        return signalHandler;
+    }
+
+    PendingHandler getPendingHandler() {
+        if(pendingHandler == null) {
+            synchronized (this) {
+                if(pendingHandler == null) {
+                    pendingHandler = new PendingHandler(this);
+                }
+            }
+        }
+        return pendingHandler;
     }
 
     public void run() {
         nodeId = nodeCounter.incrementAndGet();
         signalsReceivingThread = new Thread(() ->
         {
-            Stoppable s = new SignalsWatcher(this, sender);
+            Stoppable s = new SignalsWatcher(this);
             stoppables.add(s);
             s.run();
             logger.info("stopped");
@@ -76,15 +111,14 @@ public class Node implements Stoppable {
         );
         signalsReceivingThread.start();
 
-        watchingThread = new Thread(() ->
+        pendingHandlerThread = new Thread(() ->
         {
-            TaskWatcher s = new TaskWatcher(this, sender);
-            stoppables.add(s);
-            s.run();
+            stoppables.add(getPendingHandler());
+            getPendingHandler().run();
             logger.info("stopped");
         }
         );
-        watchingThread.start();
+        pendingHandlerThread.start();
     }
 
     String getUniqueNodeId() {
@@ -92,16 +126,21 @@ public class Node implements Stoppable {
     }
 
     void register(Task task) {
-        task.setLocalState(TaskStateEnum.UNCLAIM);
-        tasks.put(task.getName(), task);
+        getSignalHandler().handle(task, SignalEnum.INITIATING_I);
     }
 
     void releaseAllTasks() {
         tasks.values().forEach(t -> {
-            if (t.getLocalState() == TaskStateEnum.CLAIMED_BY_NODE || t.getLocalState() == TaskStateEnum.HANDLING_BY_NODE) {
-                t.setLocalState(TaskStateEnum.UNCLAIM);
-            }
+            getSignalHandler().handle(t, SignalEnum.UNCLAIM_I);
         });
+    }
+    public Thread newHandlerThread(final Runnable runnable) {
+        Thread result = new Thread(runnable);
+        handlerThreads.add(result);
+        return result;
+    }
+    public void disposeHandlerThread(final Thread thread) {
+        assert handlerThreads.remove(thread);
     }
 
     @Override
@@ -109,14 +148,23 @@ public class Node implements Stoppable {
         logger.info("Killing node: {}", getUniqueNodeId());
         stoppables.forEach(s -> s.shutdown());
         stoppables.clear();
-        tasks.entrySet().forEach(e -> e.getValue().setLocalState(TaskStateEnum.UNCLAIM));
+        tasks.entrySet().forEach(e -> {
+            getSignalHandler().handle(e.getValue(), SignalEnum.UNCLAIM_I);
+        });
         try {
             Thread.sleep(Node.CONSUMER_POLL_TIME + 1000);
         } catch (InterruptedException e) {
-            throw new KctmException("During shutdown interrupted",e);
+            throw new KctmException("During shutdown interrupted", e);
         }
-        watchingThread.interrupt();
-        signalsReceivingThread.interrupt();
+        while (pendingHandlerThread.isAlive())
+            pendingHandlerThread.interrupt();
+        while (signalsReceivingThread.isAlive())
+            signalsReceivingThread.interrupt();
+        for (Thread t: handlerThreads) {
+            while (t.isAlive()) {
+                t.interrupt();
+            }
+        }
         logger.info("Killed  node: {}", getUniqueNodeId());
     }
 
@@ -124,7 +172,25 @@ public class Node implements Stoppable {
         return clock;
     }
 
-    public void setClock(final Clock clock) {
-        this.clock = clock;
+    public void setClock(final Clock clockP) {
+        this.clock = clockP;
+    }
+
+    public Instant getNow() {
+        return Instant.now(clock);
+    }
+
+    // be able to override for testing purposes
+
+    void setSender(final Sender senderP) {
+        this.sender = senderP;
+    }
+
+    void setSignalHandler(final SignalHandler signalHandlerP) {
+        this.signalHandler = signalHandlerP;
+    }
+
+    void setPendingHandler(final PendingHandler pendingHandlerP) {
+        this.pendingHandler = pendingHandlerP;
     }
 }
