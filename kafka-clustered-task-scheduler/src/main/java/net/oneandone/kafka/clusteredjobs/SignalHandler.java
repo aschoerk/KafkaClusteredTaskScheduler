@@ -30,6 +30,8 @@ public class SignalHandler {
         this.node = node;
     }
 
+    long handlerThreadCounter;
+
     public synchronized void handle(String taskName, Map<String, Signal> signals) {
         final Task task = node.tasks.get(taskName);
         if(task.getLocalState() == ERROR) {
@@ -216,6 +218,7 @@ public class SignalHandler {
             logger.error("Starting Task {} but not Claimed_by_N: {}", task);
         }
         else {
+            final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter++;
             task.setLocalState(TaskStateEnum.HANDLING_BY_NODE);
             Pair<SignalsWatcher, Thread> p = MutablePair.of(watcher, null);
             p.setValue(node.newHandlerThread(new Runnable() {
@@ -230,8 +233,9 @@ public class SignalHandler {
                     }
                 }
             }));
-            p.getValue().setName(task.getDefinition().getName() + "_HANDLING");
+            p.getValue().setName(threadName);
             p.getValue().start();
+            this.node.getPendingHandler().scheduleInterrupter(Task task, threadName, p.getValue());
         }
     }
 

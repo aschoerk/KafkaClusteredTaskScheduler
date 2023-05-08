@@ -133,6 +133,22 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
+    void scheduleInterrupter(final Task task, final String threadName, final Thread thread) {
+        Instant now = node.getNow();
+        Instant nextCall = now.plus(task.getDefinition().getMaxDuration());
+        final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_" + threadName, new Runnable() {
+            @Override
+            public void run() {
+                if (thread.isAlive() && thread.getName().equals(threadName) && !thread.isInterrupted()) {
+                    thread.interrupt();
+                }
+            }
+        });
+        schedulePending(e);
+
+
+    }
+
 
     private void schedulePending(final PendingEntry e) {
         logger.info("Scheduling PendingEntry: {}", e);

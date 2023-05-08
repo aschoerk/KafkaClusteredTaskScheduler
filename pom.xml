@@ -3,15 +3,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>net.oneandone.kafka-clustered-task-manager</groupId>
-    <artifactId>kafka-clustered-task-manager-parent</artifactId>
+    <groupId>net.oneandone.kafka-clustered-task-scheduler</groupId>
+    <artifactId>kafka-clustered-task-scheduler-parent</artifactId>
     <packaging>pom</packaging>
-    <name>kafka-clustered-task-manager-parent</name>
+    <name>kafka-clustered-task-scheduler-parent</name>
     <version>0.0.1-SNAPSHOT</version>
 
-    <description>The parent pom for kafka-clustered-task-manager</description>
+    <description>The parent pom for kafka-clustered-task-scheduler</description>
     <modules>
-        <module>kafka-clustered-task-manager</module>
+        <module>kafka-clustered-task-scheduler</module>
     </modules>
 
     <properties>

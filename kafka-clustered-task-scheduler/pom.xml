@@ -3,11 +3,11 @@
 
 	<modelVersion>4.0.0</modelVersion>
 	 <parent>
-        <artifactId>kafka-clustered-task-manager-parent</artifactId>
+        <artifactId>kafka-clustered-task-scheduler-parent</artifactId>
         <groupId>net.oneandone.kafka-clustered-task-manager</groupId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
-    <artifactId>kafka-clustered-task-manager</artifactId>
+    <artifactId>kafka-clustered-task-scheduler</artifactId>
     <packaging>jar</packaging>
     <name>kafka-clustered-task-manager</name>
 
