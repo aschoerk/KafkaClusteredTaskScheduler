@@ -1,42 +1,45 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- *
+ *  Signal represents Kafka-Events used to initiate state-transitions on Nodes
  */
 public class Signal implements Comparable<Signal> {
     /**
-     * identifies the classname intended to execute the task. Must support the interface
+     * The name of the task for which the state change is initiated
      */
     String taskName;
 
     /**
-     * signal intention of a statechange
+     * controls the statechange
      */
     SignalEnum signal;
 
     /**
-     * identifies an instance able to execute the task. The classname must be available and be runnable
+     * the originator of the Signal
      */
     String nodeProcThreadId;
 
     /**
-     * Timestamp when this taskstate was sent to the topic
+     * Timestamp when this signal was sent to the topic
      */
     Instant timestamp;
 
+    /**
+     * the offset in the one!!! partition of the topic where the signal was transported
+     */
     private transient Long currentOffset;
 
+    /**
+     * used by SignalHandler to signify already processed signals
+     */
     private transient boolean handled = false;
 
-    Clock clock;
-
     protected Signal(final Task task, final SignalEnum signal) {
-        this.taskName = task.getName();
+        this.taskName = task.getDefinition().getName();
         this.signal = signal;
         this.nodeProcThreadId = task.getNode().getUniqueNodeId();
         this.timestamp = task.getNode().getNow();
@@ -47,8 +50,6 @@ public class Signal implements Comparable<Signal> {
 
     }
 
-
-
     public Optional<Long> getCurrentOffset() {
         return Optional.ofNullable(currentOffset);
     }
@@ -57,12 +58,6 @@ public class Signal implements Comparable<Signal> {
         this.currentOffset = currentOffsetP;
     }
 
-    boolean before(Signal signal) {
-        if (currentOffset == null || signal.currentOffset == null) {
-            throw new KctmException("Before only possible if offset is set in signal after receiving.");
-        }
-        return currentOffset < signal.currentOffset;
-    }
 
     @Override
     public boolean equals(final Object o) {
@@ -106,7 +101,7 @@ public class Signal implements Comparable<Signal> {
         return handled;
     }
 
-    public boolean equalNode(final Node node) {
+    public boolean equalNode(final NodeImpl node) {
         return node.getUniqueNodeId().equals(this.nodeProcThreadId);
     }
 

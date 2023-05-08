@@ -5,26 +5,36 @@ import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
+
 /**
  * @author aschoerk
  */
-abstract class TaskBase implements Task {
+public class TaskBase  {
+    private final TaskDefinition taskDefinition;
+
     Logger logger = LoggerFactory.getLogger(TaskBase.class);
 
     private TaskStateEnum currentState;
+
     private Instant lastClaimedInfo;
+
     private Instant lastStartup;
+
+    private NodeImpl node;
 
     int executionsOnNode = 0;
 
-    @Override
+    TaskBase(TaskDefinition taskDefinition) {
+        this.taskDefinition = taskDefinition;
+    }
+
     public TaskStateEnum getLocalState() {
         return currentState;
     }
 
-    @Override
     public void setLocalState(final TaskStateEnum stateToSet) {
-        logger.info("Task {} Setting state: {} from state: {}", this.getName(),  stateToSet, getLocalState());
+        logger.info("Task {} Setting state: {} from state: {}", taskDefinition.getName(), stateToSet, getLocalState());
         switch (stateToSet) {
             case INITIATING:
             case ERROR:
@@ -35,7 +45,7 @@ abstract class TaskBase implements Task {
                 break;
             case HANDLING_BY_NODE:
                 if(currentState != TaskStateEnum.HANDLING_BY_NODE) {
-                    executionsOnNode ++;
+                    executionsOnNode++;
                     lastStartup = getNow();
                 }
                 break;
@@ -47,17 +57,14 @@ abstract class TaskBase implements Task {
         return getNode().getNow();
     }
 
-    @Override
     public Instant getLastClaimedInfo() {
         return lastClaimedInfo;
     }
 
-    @Override
     public void sawClaimedInfo() {
         this.lastClaimedInfo = getNow();
     }
 
-    @Override
     public Instant getHandlingStarted() {
         if(currentState.equals(TaskStateEnum.HANDLING_BY_NODE)) {
             return lastStartup;
@@ -67,14 +74,25 @@ abstract class TaskBase implements Task {
         }
     }
 
-    @Override
     public Instant getLastStartup() {
         return lastStartup;
     }
 
-    @Override
     public long getExecutionsOnNode() {
         return executionsOnNode;
+    }
+
+    public NodeImpl getNode() {
+        return node;
+    }
+
+    public void setNode(final NodeImpl node) {
+        if(this.node != null) {
+            if(node.getUniqueNodeId().equals(this.node.getUniqueNodeId())) {
+                throw new KctmException("Setting NodeImpl in Task possible only once.");
+            }
+        }
+        this.node = node;
     }
 
     @Override

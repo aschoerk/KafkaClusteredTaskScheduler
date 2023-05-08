@@ -17,11 +17,11 @@ import org.slf4j.LoggerFactory;
 public class Sender {
     static Logger logger = LoggerFactory.getLogger(Sender.class);
 
-    private final Node node;
+    private final NodeImpl node;
     private final String syncTopic;
     private final KafkaProducer syncProducer;
 
-    public Sender(Node node) {
+    public Sender(NodeImpl node) {
         this.node = node;
         this.syncTopic = node.syncTopic;
         Map<String, Object> config = getConfig(node);
@@ -29,7 +29,7 @@ public class Sender {
         this.syncProducer = new KafkaProducer(config);
     }
 
-    static Map<String, Object> getConfig(final Node node) {
+    static Map<String, Object> getConfig(final NodeImpl node) {
         Map<String, Object> config = new HashMap<>();
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, node.bootstrapServers);
         config.put(ProducerConfig.ACKS_CONFIG, "1");
@@ -39,16 +39,16 @@ public class Sender {
     }
 
     void sendAsynchronous(Task t, SignalEnum signal) {
-        new Thread(() -> {
+        node.getContainer().createThread(() -> {
             sendSynchronous(t, signal);
         }).start();
     }
 
     void sendSynchronous(final Task t, final SignalEnum signal) {
         logger.info("Sending from N: {} for task {} int State: {} Signal: {}",
-                                        node.getUniqueNodeId(), t.getName(), t.getLocalState(), signal);
+                                        node.getUniqueNodeId(), t.getDefinition().getName(), t.getLocalState(), signal);
         Signal toSend = new Signal();
-        toSend.taskName = t.getName();
+        toSend.taskName = t.getDefinition().getName();
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
         toSend.timestamp = Instant.now(node.getClock());

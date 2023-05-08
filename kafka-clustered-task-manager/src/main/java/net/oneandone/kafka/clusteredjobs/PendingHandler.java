@@ -28,9 +28,9 @@ public class PendingHandler extends StoppableBase {
 
     Map<String, PendingEntry> pendingByIdentifier = Collections.synchronizedMap(new HashMap<>());
 
-    private final Node node;
+    private final NodeImpl node;
 
-    public PendingHandler(final Node node) {
+    public PendingHandler(final NodeImpl node) {
         this.node = node;
     }
 
@@ -75,7 +75,7 @@ public class PendingHandler extends StoppableBase {
 
     public void scheduleTaskClaimedOnNode(Task task) {
         Instant now = node.getNow();
-        Duration claimedSignalPeriod = task.getClaimedSignalPeriod();
+        Duration claimedSignalPeriod = task.getDefinition().getClaimedSignalPeriod();
         String identifier = claimedSignallerName(task);
         Instant nextCall = now.plus(claimedSignalPeriod);
         final PendingEntry e = new PendingEntry(nextCall, identifier, new Runnable() {
@@ -92,10 +92,10 @@ public class PendingHandler extends StoppableBase {
     Random random = new Random();
 
     public void scheduleTaskForClaiming(final Task task) {
-        long toWait = random.nextInt((int) task.getPeriod().toMillis());
+        long toWait = random.nextInt((int) task.getDefinition().getPeriod().toMillis());
 
         Instant nextCall = getNow().plus(Duration.ofMillis(toWait));
-        final PendingEntry e = new PendingEntry(nextCall, task.getName() + "_ClaimingStarter", new Runnable() {
+        final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_ClaimingStarter", new Runnable() {
             @Override
             public void run() {
                 node.getSignalHandler().handle(task, CLAIMING_I);
@@ -106,11 +106,11 @@ public class PendingHandler extends StoppableBase {
 
 
     public void scheduleTaskHandlingOnNode(Task task) {
-        Instant initialTs = task.getInitialTimestamp();
+        Instant initialTs = task.getDefinition().getInitialTimestamp();
         Instant now = node.getNow();
         Duration diff = Duration.between(initialTs, now);
-        long number = diff.dividedBy(task.getPeriod());
-        Instant nextCall = initialTs.plus(task.getPeriod().multipliedBy(number + 1));
+        long number = diff.dividedBy(task.getDefinition().getPeriod());
+        Instant nextCall = initialTs.plus(task.getDefinition().getPeriod().multipliedBy(number + 1));
         final PendingEntry e = new PendingEntry(nextCall, taskStarterName(task), new Runnable() {
             @Override
             public void run() {
@@ -123,7 +123,7 @@ public class PendingHandler extends StoppableBase {
     void scheduleTaskResurrection(final Task task) {
         Instant now = node.getNow();
         Duration diff = Duration.between(task.getLastClaimedInfo(), now);
-        Instant nextCall = task.getLastClaimedInfo().plus(task.getClaimedSignalPeriod().multipliedBy(3));
+        Instant nextCall = task.getLastClaimedInfo().plus(task.getDefinition().getClaimedSignalPeriod().multipliedBy(3));
         final PendingEntry e = new PendingEntry(nextCall, resurrectionName(task), new Runnable() {
             @Override
             public void run() {
@@ -179,15 +179,15 @@ public class PendingHandler extends StoppableBase {
     }
 
     private static String claimedSignallerName(final Task task) {
-        return task.getName() + "_" + "ClaimedSignaler";
+        return task.getDefinition().getName() + "_" + "ClaimedSignaler";
     }
 
     private static String resurrectionName(final Task task) {
-        return task.getName() + "_Resurrection";
+        return task.getDefinition().getName() + "_Resurrection";
     }
 
     private static String taskStarterName(final Task task) {
-        return task.getName() + "_" + "TaskStarter";
+        return task.getDefinition().getName() + "_" + "TaskStarter";
     }
 
 

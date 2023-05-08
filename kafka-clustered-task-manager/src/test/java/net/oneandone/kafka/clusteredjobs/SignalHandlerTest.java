@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import net.oneandone.kafka.clusteredjobs.support.HeartBeatTask;
+import net.oneandone.kafka.clusteredjobs.support.TestContainer;
+
 /**
  * @author aschoerk
  */
@@ -14,10 +17,10 @@ public class SignalHandlerTest {
 
     @ParameterizedTest
     @CsvSource({
-            "INITIATING,a,CLAIMING,CLAIMED,"
+            "INITIATING,a,CLAIMING,CLAIMED_BY_NODE,"
     })
     void testStateEngine(TaskStateEnum localState, String senderNode, SignalEnum signal, TaskStateEnum newState, SignalEnum expectedSignal) {
-        Node node = new Node(TestResources.SYNC_TOPIC, "dummyNodes");
+        NodeImpl node = new NodeImpl(new TestContainer(TestResources.SYNC_TOPIC, "dummyNodes"));
         if(senderNode == "ME") {
             senderNode = node.getUniqueNodeId();
         }
@@ -32,16 +35,17 @@ public class SignalHandlerTest {
 
         };
         node.setSender(dummySender);
-        HeartBeatTask task = new HeartBeatTask(node);
+        HeartBeatTask heartBeatTask = new HeartBeatTask();
+        Task task = node.register(heartBeatTask);
         task.setLocalState(localState);
 
         Signal signalReceived = new Signal();
-        signalReceived.taskName = task.getName();
+        signalReceived.taskName = heartBeatTask.getName();
         signalReceived.nodeProcThreadId = senderNode;
         signalReceived.signal = signal;
         HashMap<String, Signal> map = new HashMap<>();
         map.put(signalReceived.nodeProcThreadId, signalReceived);
-        node.getSignalHandler().handle(task.getName(), map);
+        node.getSignalHandler().handle(heartBeatTask.getName(), map);
 
         Assertions.assertEquals(newState, task.getLocalState());
         if(expectedSignal != null) {

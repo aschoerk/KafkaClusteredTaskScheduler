@@ -34,11 +34,16 @@ cg --> co: <b>CLAIMING_O</b>,\n<b>CLAIMED_O</b>,\n<b>HANDLING_O</b> arrived
 note left of co: node did not claim,\neither it was not the first <b>CLAIMING</b> signal \n(lowest offset) arrived via the topic,\nor signal <b>CLAIMED</b> arrived
 cn -up-> hn: according to schedule,\nnode started the task\nsignal <b>HANDLING_I</b> sent
 cn -down-> e: <b>CLAIMED_O,</b> \n<b>HANDLING_O</b> arrived
+cn -left-> cn:  <b>INITIATING_O</b> arrived,\nsend <b>CLAIMED</b>
+cn -down-> e:  <b>INITIATING_I</b> arrived
 hn -down-> cn: task was completed\nsignal <b>CLAIMED_I</b> sent
 hn -up-> i: max number of \nexecutions on node,\nsignal <b>UNCLAIM_I</b> sent
 hn -down-> e: <b>CLAIMED_O,</b> \n<b>HANDLING_O</b> arrived
+hn -left-> hn: <b>INITIATING_O</b> arrived,\nsend <b>HANDLING</b>
+hn -down-> e:  <b>INITIATING_I</b> arrived
 co -up-> ho: <b>HANDLING_O</b>\narrived
 co -left-> e: <b>CLAIMED_I</b>,\n<b>HANDLING_I</b>\narrived
+co -up->i: <b>UNCLAIM_O</b> arrived
 ho -> co: <b>CLAIMED_O</b> arrived, \nother node completed task, \nkeeps it
 note left of ho: other node is currently \nexecuting the task
 ho -up-> i: <b>UNCLAIM_O</b> arrived\nother node completed task,\ndoes not keep it claimed

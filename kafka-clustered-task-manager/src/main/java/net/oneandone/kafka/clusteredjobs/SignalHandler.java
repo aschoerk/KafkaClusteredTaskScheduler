@@ -21,12 +21,12 @@ import org.slf4j.LoggerFactory;
 public class SignalHandler {
     Logger logger = LoggerFactory.getLogger(SignalHandler.class);
 
-    private final Node node;
+    private final NodeImpl node;
 
     private boolean startingUp = true;
     private SignalsWatcher watcher;
 
-    public SignalHandler(Node node) {
+    public SignalHandler(NodeImpl node) {
         this.node = node;
     }
 
@@ -40,14 +40,14 @@ public class SignalHandler {
                 .stream()
                 .sorted()
                 .forEach(s -> {
-                    logger.info("handle Task {} State {} signal {}/{} self: {}", task.getName(), task.getLocalState()
+                    logger.info("handle Task {} State {} signal {}/{} self: {}", task.getDefinition().getName(), task.getLocalState()
                             , s.signal, s.getCurrentOffset(), s.nodeProcThreadId.equals(node.getUniqueNodeId()));
                     s.signal.handle(this, task, s);
                 });
     }
 
     public void handle(final Task task, final SignalEnum s) {
-        logger.info("handle Task {} State {} signal {}", task.getName(), task.getLocalState(), s);
+        logger.info("handle Task {} State {} signal {}", task.getDefinition().getName(), task.getLocalState(), s);
         if(!s.isInternal()) {
             throw new KctmException("Expected internal Signal");
         }
@@ -56,7 +56,7 @@ public class SignalHandler {
 
     void resurrecting(final Task task, final Signal s) {
         if(task.getLocalState() == CLAIMED_BY_OTHER || task.getLocalState() == HANDLING_BY_OTHER) {
-            if(task.getLastClaimedInfo().plus(task.getClaimedSignalPeriod().multipliedBy(3)).isBefore(node.getNow())) {
+            if(task.getLastClaimedInfo().plus(task.getDefinition().getClaimedSignalPeriod().multipliedBy(3)).isBefore(node.getNow())) {
                 initiating_i(task, s);
             }
             else {
@@ -78,7 +78,7 @@ public class SignalHandler {
     }
 
 
-    void unclaim(final Task task, final Signal s) {
+    void unclaimEvent(final Task task, final Signal s) {
         if(s.equalNode(node)) {
             if(task.getLocalState() != INITIATING && task.getLocalState() != CLAIMING) {
                 unexpectedSignal(task, s);
@@ -116,11 +116,15 @@ public class SignalHandler {
         }
     }
 
-    void claiming(final Task task, final Signal s) {
+    void claimedYetEvent(final Task task, Signal s) {
+        claimedOrHandling(task, s, CLAIMED_BY_OTHER);
+    }
+
+    void claimingEvent(final Task task, final Signal s) {
         switch (task.getLocalState()) {
             case CLAIMING:
                 if(s.equalNode(node)) {
-                    node.getSender().sendSynchronous(task, SignalEnum.CLAIMED);
+                    node.getSender().sendSynchronous(task, SignalEnum.CLAIMED_YET);
                     task.setLocalState(CLAIMED_BY_NODE);
                     node.getPendingHandler().scheduleTaskHandlingOnNode(task);
                     node.getPendingHandler().scheduleTaskClaimedOnNode(task);
@@ -144,6 +148,7 @@ public class SignalHandler {
                     // this event should already have arrived, otherwise I would yet be CLAIMING
                     unexpectedSignal(task, s);
                 }
+                node.getSender().sendSynchronous(task, SignalEnum.CLAIMED_YET);
                 break;
             default:
                 throw new KctmException("Unexpected State: " + task.getLocalState());
@@ -153,11 +158,11 @@ public class SignalHandler {
 
     void initiating_i(final Task task, final Signal s) {
         task.setLocalState(TaskStateEnum.INITIATING);
-        node.tasks.put(task.getName(), task);
+        node.tasks.put(task.getDefinition().getName(), task);
         node.getPendingHandler().scheduleTaskForClaiming(task);
     }
 
-    void initiating(final Task task, final Signal s) {
+    void initiatingEvent(final Task task, final Signal s) {
         switch (task.getLocalState()) {
             case HANDLING_BY_NODE:
                 if(!s.equalNode(node)) {
@@ -200,7 +205,7 @@ public class SignalHandler {
         }
     }
 
-    void claimed(final Task task, final Signal s) {
+    void claimedEvent(final Task task, final Signal s) {
         claimedOrHandling(task, s, CLAIMED_BY_OTHER);
 
     }
@@ -217,15 +222,15 @@ public class SignalHandler {
                 @Override
                 public void run() {
                     try {
-                        node.getPendingHandler().removeClaimedSignaller(task);  // claim could get lost when running job
-                        task.getJob().run();
+                        node.getPendingHandler().removeClaimedSignaller(task); // claim could get lost when running job
+                        task.getDefinition().getJob(node).run();
                     } finally {
                         node.getSignalHandler().handle(task, UNHANDLING_I);
                         node.disposeHandlerThread(p.getValue());
                     }
                 }
             }));
-            p.getValue().setName(task.getName() + "_HANDLING");
+            p.getValue().setName(task.getDefinition().getName() + "_HANDLING");
             p.getValue().start();
         }
     }
@@ -233,7 +238,7 @@ public class SignalHandler {
 
     void unhandling_i(final Task task, final Signal s) {
         if(task.getLocalState() == TaskStateEnum.HANDLING_BY_NODE) {
-            if(task.getExecutionsOnNode() < task.maxExecutionsOnNode()) {
+            if(task.getDefinition().getMaxExecutionsOnNode() == null || task.getExecutionsOnNode() < task.getDefinition().getMaxExecutionsOnNode()) {
                 task.setLocalState(TaskStateEnum.CLAIMED_BY_NODE);
                 node.getPendingHandler().scheduleTaskHandlingOnNode(task);
                 node.getPendingHandler().scheduleTaskClaimedOnNode(task);
@@ -249,7 +254,7 @@ public class SignalHandler {
         }
     }
 
-    void handling(final Task task, final Signal s) {
+    void handlingEvent(final Task task, final Signal s) {
         if(task.getLocalState() != INITIATING || !s.equalNode(node)) {
             claimedOrHandling(task, s, HANDLING_BY_OTHER);
         }
@@ -286,7 +291,7 @@ public class SignalHandler {
     }
 
     private void unexpectedSignal(final Task task, final Signal s) {
-        logger.error("Task {} in state: {} set in Error because of unexpected Signal {}", task.getName(), task.getLocalState(), s);
+        logger.error("Task {} in state: {} set in Error because of unexpected Signal {}", task.getDefinition().getName(), task.getLocalState(), s);
         task.setLocalState(ERROR);
     }
 

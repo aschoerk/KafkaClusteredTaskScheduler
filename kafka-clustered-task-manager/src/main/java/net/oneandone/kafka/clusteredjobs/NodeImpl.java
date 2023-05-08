@@ -14,18 +14,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.oneandone.kafka.clusteredjobs.api.Container;
+import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
+
 /**
  * @author aschoerk
  */
-public class Node implements Stoppable {
+public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.api.Node {
 
     static final long CONSUMER_POLL_TIME = 500L;
-    Logger logger = LoggerFactory.getLogger(Node.class);
-    public static final long CLAIMED_SEND_PERIOD = 30 * 1000;
-    public static final long HANDLING_SEND_PERIOD = 10 * 1000;
+    Logger logger = LoggerFactory.getLogger(NodeImpl.class);
     public static final long MAX_AGE_OF_SIGNAL = 60 * 1000;
-    public static final long MAX_CLAIMING_TIME = 10 * 1000;
-
     private static AtomicInteger nodeCounter = new AtomicInteger(0);
 
     private ArrayList<Stoppable> stoppables = new ArrayList<>();
@@ -35,7 +34,7 @@ public class Node implements Stoppable {
     private int nodeId;
 
     final String syncTopic;
-    Logger log = LoggerFactory.getLogger(Node.class);
+    Logger log = LoggerFactory.getLogger(NodeImpl.class);
 
     final String SYNCING_GROUP = "SYNCING_GROUP";
 
@@ -53,15 +52,17 @@ public class Node implements Stoppable {
     private transient PendingHandler pendingHandler;
 
     private Set<Thread> handlerThreads = new HashSet<>();
+    private Container container;
 
 
-    public Node(String syncTopic, String bootstrapServers) {
-        this.syncTopic = syncTopic;
-        this.bootstrapServers = bootstrapServers;
+    public NodeImpl(Container container) {
+        this.container = container;
+        this.syncTopic = container.getSyncTopicName();
+        this.bootstrapServers = container.getBootstrapServers();
         try {
             hostname = Inet4Address.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
-            throw new KctmException("Node cannot identify host", e);
+            throw new KctmException("NodeImpl cannot identify host", e);
         }
         processName = ManagementFactory.getRuntimeMXBean().getName();
     }
@@ -101,7 +102,7 @@ public class Node implements Stoppable {
 
     public void run() {
         nodeId = nodeCounter.incrementAndGet();
-        signalsReceivingThread = new Thread(() ->
+        signalsReceivingThread = getContainer().createThread(() ->
         {
             Stoppable s = new SignalsWatcher(this);
             stoppables.add(s);
@@ -111,7 +112,7 @@ public class Node implements Stoppable {
         );
         signalsReceivingThread.start();
 
-        pendingHandlerThread = new Thread(() ->
+        pendingHandlerThread = getContainer().createThread(() ->
         {
             stoppables.add(getPendingHandler());
             getPendingHandler().run();
@@ -121,12 +122,16 @@ public class Node implements Stoppable {
         pendingHandlerThread.start();
     }
 
-    String getUniqueNodeId() {
+    public String getUniqueNodeId() {
         return hostname + "_" + processName + "_" + nodeId;
     }
 
-    void register(Task task) {
+    public Task register(TaskDefinition taskDefinition) {
+        Task task = new Task(taskDefinition);
+        task.setNode(this);
+        this.tasks.put(taskDefinition.getName(), task);
         getSignalHandler().handle(task, SignalEnum.INITIATING_I);
+        return task;
     }
 
     void releaseAllTasks() {
@@ -134,8 +139,9 @@ public class Node implements Stoppable {
             getSignalHandler().handle(t, SignalEnum.UNCLAIM_I);
         });
     }
+
     public Thread newHandlerThread(final Runnable runnable) {
-        Thread result = new Thread(runnable);
+        Thread result = getContainer().createThread((runnable));
         handlerThreads.add(result);
         return result;
     }
@@ -152,7 +158,7 @@ public class Node implements Stoppable {
             getSignalHandler().handle(e.getValue(), SignalEnum.UNCLAIM_I);
         });
         try {
-            Thread.sleep(Node.CONSUMER_POLL_TIME + 1000);
+            Thread.sleep(NodeImpl.CONSUMER_POLL_TIME + 1000);
         } catch (InterruptedException e) {
             throw new KctmException("During shutdown interrupted", e);
         }
@@ -192,5 +198,13 @@ public class Node implements Stoppable {
 
     void setPendingHandler(final PendingHandler pendingHandlerP) {
         this.pendingHandler = pendingHandlerP;
+    }
+
+    public Task getTask(String taskName) {
+        return this.tasks.get(taskName);
+    }
+
+    public Container getContainer() {
+        return container;
     }
 }

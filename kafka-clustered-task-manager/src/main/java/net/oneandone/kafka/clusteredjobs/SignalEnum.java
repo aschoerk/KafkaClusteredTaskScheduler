@@ -1,7 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
 /**
- * @author aschoerk
+ * Signals control the state-transitions.
  */
 public enum SignalEnum implements SignalInterface {
     /**
@@ -14,7 +14,7 @@ public enum SignalEnum implements SignalInterface {
     INITIATING {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.initiating(task, s);
+            signalHandler.initiatingEvent(task, s);
         }
     },
     /**
@@ -23,7 +23,7 @@ public enum SignalEnum implements SignalInterface {
     CLAIMING{
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claiming(task, s);
+            signalHandler.claimingEvent(task, s);
         }
     },   //
     /**
@@ -32,7 +32,7 @@ public enum SignalEnum implements SignalInterface {
     CLAIMED {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claimed(task, s);
+            signalHandler.claimedEvent(task, s);
         }
     },
     /**
@@ -41,7 +41,7 @@ public enum SignalEnum implements SignalInterface {
     HANDLING {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.handling(task, s);
+            signalHandler.handlingEvent(task, s);
         }
     },
     /**
@@ -50,7 +50,13 @@ public enum SignalEnum implements SignalInterface {
     UNCLAIMED {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.unclaim(task, s);
+            signalHandler.unclaimEvent(task, s);
+        }
+    },
+    CLAIMED_YET {
+        @Override
+        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
+            signalHandler.claimedYetEvent(task, s);
         }
     },
 

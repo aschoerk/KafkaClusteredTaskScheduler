@@ -4,13 +4,15 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </Console>
+        <InterceptingAppender>
+        </InterceptingAppender>
     </Appenders>
     <Loggers>
         <Root level="warn">
             <AppenderRef ref="Console"/>
         </Root>
-        <Logger name="net.oneandone.kafka.clusteredjobs" level="WARN" additivity="false">
-            <AppenderRef ref="Console"/>
+        <Logger name="net.oneandone.kafka.clusteredjobs" level="TRACE" additivity="false">
+            <AppenderRef ref="InterceptingAppender"/>
         </Logger>
     </Loggers>
 </Configuration>

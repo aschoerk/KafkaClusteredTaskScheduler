@@ -1,60 +1,108 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import java.time.Duration;
 import java.time.Instant;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 
 /**
  * @author aschoerk
  */
-public interface Task {
+public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
-    /**
-     * The initiation time
-     * @return the initiation time of the task in milliseconds epochtime.
-     */
-    Instant getInitialTimestamp();
+    private final TaskDefinition taskDefinition;
+    Logger logger = LoggerFactory.getLogger(TaskBase.class);
 
-    /**
-     * The delay after the initial setup of the task to wait before first start.
-     *
-     * @return the initial delay in milliseconds
-     */
-    Duration getInitialDelay();
+    private TaskStateEnum currentState;
 
-    /**
-     * The last timestamp, the task was started. if state is {@link SignalEnum#HANDLING} it is the startup of the
-     * currently running task.
-     * @return the last startup in milliseconds epoch time
-     */
-    Instant getLastStartup();
+    private Instant lastClaimedInfo;
 
-    /**
-     * The period of the repetition of the task
-     *
-     * @return the period in milliseconds
-     */
-    Duration getPeriod();
+    private Instant lastStartup;
 
-    long maxExecutionsOnNode();
+    private net.oneandone.kafka.clusteredjobs.api.Node node;
 
-    String getName();
+    int executionsOnNode = 0;
 
-    TaskStateEnum getLocalState();
+    Task(TaskDefinition taskDefinition) {
+        this.taskDefinition = taskDefinition;
+    }
 
-    Instant getHandlingStarted();
+    public TaskStateEnum getLocalState() {
+        return currentState;
+    }
 
-    void setLocalState(TaskStateEnum state);
+    public void setLocalState(final TaskStateEnum stateToSet) {
+        logger.info("Task {} Setting state: {} from state: {}", taskDefinition.getName(), stateToSet, getLocalState());
+        switch (stateToSet) {
+            case INITIATING:
+            case ERROR:
+            case HANDLING_BY_OTHER:
+            case CLAIMED_BY_OTHER:
+                executionsOnNode = 0;
+                sawClaimedInfo();
+                break;
+            case HANDLING_BY_NODE:
+                if(currentState != TaskStateEnum.HANDLING_BY_NODE) {
+                    executionsOnNode++;
+                    lastStartup = getNow();
+                }
+                break;
+        }
+        currentState = stateToSet;
+    }
 
-    Instant getLastClaimedInfo();
+    private Instant getNow() {
+        return getNode().getNow();
+    }
 
-    void sawClaimedInfo();
+    public Instant getLastClaimedInfo() {
+        return lastClaimedInfo;
+    }
 
-    Runnable getJob();
+    public void sawClaimedInfo() {
+        this.lastClaimedInfo = getNow();
+    }
 
-    long getExecutionsOnNode();
+    public Instant getHandlingStarted() {
+        if(currentState.equals(TaskStateEnum.HANDLING_BY_NODE)) {
+            return lastStartup;
+        }
+        else {
+            throw new KctmException("Should not ask for handlingStarted if not HANDLING");
+        }
+    }
 
-    Duration getClaimedSignalPeriod();
+    public Instant getLastStartup() {
+        return lastStartup;
+    }
 
-    Node getNode();
+    public long getExecutionsOnNode() {
+        return executionsOnNode;
+    }
 
+    public net.oneandone.kafka.clusteredjobs.api.Node getNode() {
+        return node;
+    }
+
+    public void setNode(final net.oneandone.kafka.clusteredjobs.api.Node node) {
+        if(this.node != null) {
+            if(node.getUniqueNodeId().equals(this.node.getUniqueNodeId())) {
+                throw new KctmException("Setting NodeImpl in Task possible only once.");
+            }
+        }
+        this.node = node;
+    }
+
+    @Override
+    public String toString() {
+        return "Task{" +
+               "currentState=" + currentState +
+               '}';
+    }
+
+    public TaskDefinition getDefinition() {
+        return taskDefinition;
+    }
 }

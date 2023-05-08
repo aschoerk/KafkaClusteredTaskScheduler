@@ -1,6 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.Node.CONSUMER_POLL_TIME;
+import static net.oneandone.kafka.clusteredjobs.NodeImpl.CONSUMER_POLL_TIME;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
@@ -36,13 +36,13 @@ import org.slf4j.LoggerFactory;
  */
 public class SignalsWatcher extends StoppableBase {
     private static final long SEARCH_SYNC_OFFSET_TRIGGER = 1000;
-    Logger logger = LoggerFactory.getLogger(Node.class);
-    private Node node;
+    Logger logger = LoggerFactory.getLogger(NodeImpl.class);
+    private NodeImpl node;
     ConcurrentHashMap<String, ConcurrentHashMap<String, Signal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
     // no need to be threadsafe yet
 
 
-    public SignalsWatcher(Node node) {
+    public SignalsWatcher(NodeImpl node) {
         this.node = node;
     }
 
@@ -159,7 +159,7 @@ public class SignalsWatcher extends StoppableBase {
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
                                 Task task = node.tasks.get(signal.taskName);
-                                logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(), task.getName(), task.getLocalState(), signal.nodeProcThreadId, signal.signal);
+                                logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(), task.getDefinition().getName(), task.getLocalState(), signal.nodeProcThreadId, signal.signal);
                                 if(task != null) {
                                     if(lastSignalPerTaskAndNode.get(signal.taskName) == null) {
                                         lastSignalPerTaskAndNode.put(signal.taskName, new ConcurrentHashMap<>());
@@ -200,7 +200,7 @@ public class SignalsWatcher extends StoppableBase {
         }
     }
 
-    static Map<String, Object> getSyncingConsumerConfig(final Node nodeP) {
+    static Map<String, Object> getSyncingConsumerConfig(final NodeImpl nodeP) {
         Map<String, Object> syncingConsumerConfig = new HashMap<>();
         syncingConsumerConfig.put(BOOTSTRAP_SERVERS_CONFIG, nodeP.bootstrapServers);
         syncingConsumerConfig.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
