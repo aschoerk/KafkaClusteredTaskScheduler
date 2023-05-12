@@ -81,6 +81,7 @@ public class NodeInformationHandler {
             }
 
         } else {
+            logger.info("Node: {} nodeheartbeat from {} arrived",node.getUniqueNodeId(), nodeInformation.getName());
             nodesSeen.add(nodeInformation.getName());
             nodesReceivedFrom.add(nodeInformation.getName());
             nodeInformation.getTaskInformation().forEach(ti -> {
@@ -95,25 +96,39 @@ public class NodeInformationHandler {
                                 break;
                             case HANDLING_BY_NODE:
                                 if(unsureState(task)) {
+                                    logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeInformation.getName());
                                     task.setLocalState(TaskStateEnum.HANDLING_BY_OTHER, nodeInformation.getName());
                                 }
                                 break;
                             case CLAIMED_BY_NODE:
                                 if(unsureState(task)) {
+                                    logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeInformation.getName());
                                     task.setLocalState(TaskStateEnum.CLAIMED_BY_OTHER, nodeInformation.getName());
                                 }
                                 break;
                             case HANDLING_BY_OTHER:
-                            case CLAIMED_BY_OTHER:
-                                String supposedClaimingNode = ti.getNodeName().get();
-                                nodesSeen.add(supposedClaimingNode);
-                                if(supposedClaimingNode.equals(node.getUniqueNodeId())) {
-                                    if(task.getLocalState() != TaskStateEnum.HANDLING_BY_NODE && ti.getState() == TaskStateEnum.HANDLING_BY_OTHER
-                                       || task.getLocalState() != TaskStateEnum.CLAIMED_BY_NODE && ti.getState() == TaskStateEnum.CLAIMED_BY_OTHER) {
-                                        logger.warn("Discrepancy in nodeHeartBeatStates: {},{} and local {}", nodeInformation.getName(), ti, task);
-                                    }
+                                if(unsureState(task)) {
+                                    logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeInformation.getName());
+                                    task.setLocalState(TaskStateEnum.HANDLING_BY_OTHER, nodeInformation.getName());
                                 }
                                 break;
+                            case CLAIMED_BY_OTHER:
+                                if(unsureState(task)) {
+                                    logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeInformation.getName());
+                                    task.setLocalState(TaskStateEnum.CLAIMED_BY_OTHER, nodeInformation.getName());
+                                }
+                                break;
+//                                String supposedClaimingNode = ti.getNodeName().get();
+//                                nodesSeen.add(supposedClaimingNode);
+//                                if(supposedClaimingNode.equals(node.getUniqueNodeId())) {
+//                                    if(task.getLocalState() != TaskStateEnum.HANDLING_BY_NODE && ti.getState() == TaskStateEnum.HANDLING_BY_OTHER
+//                                       || task.getLocalState() != TaskStateEnum.CLAIMED_BY_NODE && ti.getState() == TaskStateEnum.CLAIMED_BY_OTHER) {
+//                                        logger.warn("Discrepancy in nodeHeartBeatStates: {},{} and local {}", nodeInformation.getName(), ti, task);
+//                                    }
+//                                } else {
+//
+//                                }
+//                                break;
                         }
                     }
                 } else {

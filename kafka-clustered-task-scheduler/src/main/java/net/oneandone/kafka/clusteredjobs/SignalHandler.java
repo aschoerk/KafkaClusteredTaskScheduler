@@ -218,7 +218,6 @@ public class SignalHandler {
         if (task.getLocalState() == null) {
             task.setLocalState(NEW);
             node.tasks.put(task.getDefinition().getName(), task);
-            node.getSender().sendSynchronous(task, DOHEARTBEAT);
         } else {
             task.setLocalState(INITIATING);
             node.getPendingHandler().scheduleTaskForClaiming(task);

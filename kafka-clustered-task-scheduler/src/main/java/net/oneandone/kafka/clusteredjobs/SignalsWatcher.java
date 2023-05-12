@@ -139,18 +139,20 @@ public class SignalsWatcher extends StoppableBase {
                 if(records.count() > 0) {
                     logger.debug("N: {} found {} records", node.getUniqueNodeId(), records.count());
                     records.forEach(r -> {
-                        if (oC.offsetSet1.contains(r.offset()) || oC.offsetSet2.contains(r.offset())) {
+                        if(oC.offsetSet1.contains(r.offset()) || oC.offsetSet2.contains(r.offset())) {
                             logger.error("Repeated offset: {}");
-                        } else {
-                            if (oC.useSetOne) {
+                        }
+                        else {
+                            if(oC.useSetOne) {
                                 oC.offsetSet1.add(r.offset());
-                                if (oC.offsetSet1.size() > 100) {
+                                if(oC.offsetSet1.size() > 100) {
                                     oC.useSetOne = false;
                                     oC.offsetSet2.clear();
                                 }
-                            } else {
+                            }
+                            else {
                                 oC.offsetSet2.add(r.offset());
-                                if (oC.offsetSet2.size() > 100) {
+                                if(oC.offsetSet2.size() > 100) {
                                     oC.useSetOne = true;
                                     oC.offsetSet1.clear();
                                 }
@@ -169,8 +171,14 @@ public class SignalsWatcher extends StoppableBase {
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
                                 Task task = node.tasks.get(signal.taskName);
-                                logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(), task.getDefinition().getName(), task.getLocalState(), signal.nodeProcThreadId, signal.signal);
-                                if(task != null) {
+
+                                if(task == null && signal.signal == SignalEnum.DOHEARTBEAT) {
+                                    logger.debug("Node: {} triggering NodeHeartBeat beause of DOHEARTBEAT", node.getUniqueNodeId());
+                                    node.getPendingHandler().scheduleNodeHeartBeat(node.getNodeHeartbeat().getJob(node), node.getNow());
+                                }
+                                else if(task != null) {
+                                    logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(),
+                                            signal.taskName, task.getLocalState(), signal.nodeProcThreadId, signal.signal);
                                     if(lastSignalPerTaskAndNode.get(signal.taskName) == null) {
                                         lastSignalPerTaskAndNode.put(signal.taskName, new ConcurrentHashMap<>());
                                     }
@@ -181,22 +189,22 @@ public class SignalsWatcher extends StoppableBase {
                                         }
                                     }
                                     lastSignalPerTaskAndNode.get(signal.taskName).put(signal.nodeProcThreadId, signal);
-                                }
-                                else {
+                                    task.setLastSignal(signal);
+                                    logger.info("SignalHandler handle signal {} from {} for Task {}/{}", signal.signal,
+                                            signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
+                                    signal.signal.handle(node.getSignalHandler(), task, signal);
+                                } else {
                                     logger.warn("Received Signal from unknown task {}", signal);
                                 }
-                                task.setLastSignal(signal);
-                                logger.info("SignalHandler handle signal {} from {} for Task {}/{}", signal.signal,
-                                        signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
-                                signal.signal.handle(node.getSignalHandler(), task, signal);
                             }
-                            else if (event instanceof NodeInformation) {
+                            else if(event instanceof NodeInformation) {
                                 NodeInformationImpl nodeInformation = (NodeInformationImpl) event;
                                 nodeInformation.setOffset(r.offset());
                                 nodeInformation.setArrivalTime(node.getNow());
                                 nodeInformations.add(nodeInformation);
                                 node.getNodeInformationHandler().handle(nodeInformation);
-                            } else {
+                            }
+                            else {
                                 throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
                             }
                         }
@@ -204,10 +212,12 @@ public class SignalsWatcher extends StoppableBase {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        if (!doShutdown())
-                            logger.error("SignalsWatcher N: got interrupted {}",node.getUniqueNodeId(), e);
-                        else
-                            logger.info("SignalsWatcher N: got interrupted {}",node.getUniqueNodeId(), e);
+                        if(!doShutdown()) {
+                            logger.error("SignalsWatcher N: got interrupted {}", node.getUniqueNodeId(), e);
+                        }
+                        else {
+                            logger.info("SignalsWatcher N: got interrupted {}", node.getUniqueNodeId(), e);
+                        }
                         return;
                     }
                 }

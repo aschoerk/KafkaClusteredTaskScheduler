@@ -36,7 +36,7 @@ public class PendingHandler extends StoppableBase {
     }
 
 
-    private void schedulePending(final PendingEntry e) {
+    public void schedulePending(final PendingEntry e) {
         logger.info("Node: {} Scheduling PendingEntry: {}", node.getUniqueNodeId(), e);
         if(pendingByIdentifier.containsKey(e.getIdentifier())) {
             PendingEntry existingTask = pendingByIdentifier.get(e.getIdentifier());
@@ -110,7 +110,7 @@ public class PendingHandler extends StoppableBase {
     public void scheduleTaskHeartbeatOnNode(Task task) {
         Instant now = node.getNow();
         Duration claimedSignalPeriod = task.getDefinition().getClaimedSignalPeriod();
-        String identifier = claimedSignallerName(task);
+        String identifier = heartbeatSignallerName(task);
         Instant nextCall = now.plus(claimedSignalPeriod);
         final PendingEntry e = new PendingEntry(nextCall, identifier, new Runnable() {
             @Override
@@ -210,7 +210,7 @@ public class PendingHandler extends StoppableBase {
     }
 
     public void removeClaimedSignaller(final Task t) {
-        removePending(claimedSignallerName(t),false);
+        removePending(heartbeatSignallerName(t),false);
     }
 
     public void removeTaskResurrection(final Task t) {
@@ -222,7 +222,7 @@ public class PendingHandler extends StoppableBase {
         removePending(taskStarterName(t), false);
     }
 
-    private static String claimedSignallerName(final Task task) {
+    private static String heartbeatSignallerName(final Task task) {
         return task.getDefinition().getName() + "_" + "ClaimedSignaler";
     }
 

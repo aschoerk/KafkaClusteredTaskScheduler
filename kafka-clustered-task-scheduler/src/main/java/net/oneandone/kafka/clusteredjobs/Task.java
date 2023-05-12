@@ -55,7 +55,7 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     }
 
     public void setLocalState(final TaskStateEnum stateToSet) {
-        logger.info("Task {} Setting state: {} from state: {}", taskDefinition.getName(), stateToSet, getLocalState());
+        logger.info("Node: {} Task {} Setting state: {} from state: {}",node.getUniqueNodeId(), taskDefinition.getName(), stateToSet, getLocalState());
         switch (stateToSet) {
             case HANDLING_BY_OTHER:
             case CLAIMED_BY_OTHER:

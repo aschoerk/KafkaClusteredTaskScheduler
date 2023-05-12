@@ -1,9 +1,12 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import static net.oneandone.kafka.clusteredjobs.SignalEnum.DOHEARTBEAT;
+
 import java.lang.management.ManagementFactory;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -136,6 +139,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         }
         this.nodeHeartbeat = NodeHeartbeat.NodeHeartBeatBuilder.aNodeHeartBeat().build();
         nodeHeartbeat.getJob(this).run();
+        getPendingHandler().schedulePending(new PendingEntry(getNow().plus(Duration.ofMillis(1000L)),"doHeartBeat" + getUniqueNodeId(),
+                        () -> NodeImpl.this.getSender().sendSynchronous(null, DOHEARTBEAT)));
+    }
+
+    public NodeHeartbeat getNodeHeartbeat() {
+        return nodeHeartbeat;
     }
 
     public String getUniqueNodeId() {

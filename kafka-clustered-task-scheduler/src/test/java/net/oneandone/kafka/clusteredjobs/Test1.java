@@ -139,12 +139,17 @@ public class Test1 extends TestBase{
         int count = 0;
         while (count < 20) {
             Thread.sleep(10000);
-            int index = random.nextInt(10);
-            NodeImpl node = nodes.get(random.nextInt(10));
-            node.shutdown();
-            final NodeImpl nodeNew = newNode();
-            nodes.set(index, nodeNew);
-            definitions.forEach(d -> nodeNew.register(d));
+            int index1 = random.nextInt(10);
+            int index2 = random.nextInt(10);
+            NodeImpl node1 = nodes.get(index1);
+            node1.shutdown();
+            NodeImpl node2 = nodes.get(index2);
+            node2.shutdown();
+            final NodeImpl nodeNew1 = newNode();
+            final NodeImpl nodeNew2 = newNode();
+            nodes.set(index1, nodeNew1);
+            nodes.set(index2, nodeNew2);
+            definitions.forEach(d -> { nodeNew1.register(d); nodeNew2.register(d); });
         }
         checkLogs();
     }

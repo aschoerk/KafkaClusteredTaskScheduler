@@ -45,9 +45,14 @@ public class Sender {
 
     void sendSynchronous(final Task t, final SignalEnum signal) {
         logger.info("Sending from N: {} for task {} int State: {} Signal: {}",
-                                        node.getUniqueNodeId(), t.getDefinition().getName(), t.getLocalState(), signal);
+                                        node.getUniqueNodeId(),
+                t != null ? t.getDefinition().getName() : "NodeTask", t != null ? t.getLocalState() : "null", signal);
         Signal toSend = new Signal();
-        toSend.taskName = t.getDefinition().getName();
+        if (t != null) {
+            toSend.taskName = t.getDefinition().getName();
+        } else {
+            toSend.taskName = "NodeTask";
+        }
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
         toSend.timestamp = Instant.now(node.getClock());
