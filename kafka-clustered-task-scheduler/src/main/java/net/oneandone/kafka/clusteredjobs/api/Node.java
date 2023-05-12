@@ -8,4 +8,5 @@ public interface Node {
     Task getTask(String taskName);
     Instant getNow();
     Container getContainer();
+    NodeInformation getNodeInformation();
 }

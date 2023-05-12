@@ -1,11 +1,15 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.HANDLING_BY_OTHER;
+
 import java.time.Instant;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
+import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
 
 /**
  * @author aschoerk
@@ -13,44 +17,65 @@ import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     private final TaskDefinition taskDefinition;
-    Logger logger = LoggerFactory.getLogger(TaskBase.class);
+    Logger logger = LoggerFactory.getLogger(Task.class);
 
-    private TaskStateEnum currentState;
+    TaskStateEnum localState;
 
-    private Instant lastClaimedInfo;
+    Instant lastClaimedInfo;
 
-    private Instant lastStartup;
+    Instant lastStartup;
+
+    String currentExecutor;
 
     private net.oneandone.kafka.clusteredjobs.api.Node node;
 
     int executionsOnNode = 0;
+    private Signal lastSignal = null;
 
     Task(TaskDefinition taskDefinition) {
         this.taskDefinition = taskDefinition;
     }
 
     public TaskStateEnum getLocalState() {
-        return currentState;
+        return localState;
+    }
+
+    public void setLocalState(final TaskStateEnum stateToSet, Signal s) {
+        setLocalState(stateToSet, s.nodeProcThreadId);
+    }
+    public void setLocalState(final TaskStateEnum stateToSet, final String nodeName) {
+        if (stateToSet == HANDLING_BY_OTHER || stateToSet == TaskStateEnum.CLAIMED_BY_OTHER) {
+            currentExecutor = nodeName;
+            executionsOnNode = 0;
+            sawClaimedInfo();
+            localState = stateToSet;
+        } else {
+            throw new KctmException("Only deliver Signal if CLAIMED or HANDLED by Other");
+        }
     }
 
     public void setLocalState(final TaskStateEnum stateToSet) {
         logger.info("Task {} Setting state: {} from state: {}", taskDefinition.getName(), stateToSet, getLocalState());
         switch (stateToSet) {
-            case INITIATING:
-            case ERROR:
             case HANDLING_BY_OTHER:
             case CLAIMED_BY_OTHER:
+                throw new KctmException("If setting state to claimed or handling by other, add signal.");
+            case INITIATING:
+            case ERROR:
                 executionsOnNode = 0;
                 sawClaimedInfo();
                 break;
             case HANDLING_BY_NODE:
-                if(currentState != TaskStateEnum.HANDLING_BY_NODE) {
+                if(localState != TaskStateEnum.HANDLING_BY_NODE) {
                     executionsOnNode++;
                     lastStartup = getNow();
                 }
                 break;
+            case CLAIMED_BY_NODE:
+                currentExecutor = null;
+                break;
         }
-        currentState = stateToSet;
+        localState = stateToSet;
     }
 
     private Instant getNow() {
@@ -66,7 +91,7 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     }
 
     public Instant getHandlingStarted() {
-        if(currentState.equals(TaskStateEnum.HANDLING_BY_NODE)) {
+        if(localState.equals(TaskStateEnum.HANDLING_BY_NODE)) {
             return lastStartup;
         }
         else {
@@ -98,11 +123,29 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     @Override
     public String toString() {
         return "Task{" +
-               "currentState=" + currentState +
+               "currentState=" + localState +
                '}';
     }
 
     public TaskDefinition getDefinition() {
         return taskDefinition;
     }
+
+    public Optional<String> getCurrentExecutor() {
+        return Optional.ofNullable(currentExecutor);
+    }
+
+    public void setExecutionsOnNode(final int i) {
+        executionsOnNode = 0;
+    }
+
+    public Signal getLastSignal() {
+        return lastSignal;
+    }
+
+    public void setLastSignal(Signal signal) {
+        this.lastSignal = signal;
+    }
+
+
 }

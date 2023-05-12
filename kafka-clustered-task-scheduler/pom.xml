@@ -3,13 +3,13 @@
 
 	<modelVersion>4.0.0</modelVersion>
 	 <parent>
-        <artifactId>kafka-clustered-task-scheduler-parent</artifactId>
-        <groupId>net.oneandone.kafka-clustered-task-manager</groupId>
+         <groupId>net.oneandone.kafka-clustered-task-scheduler</groupId>
+         <artifactId>kafka-clustered-task-scheduler-parent</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
     <artifactId>kafka-clustered-task-scheduler</artifactId>
     <packaging>jar</packaging>
-    <name>kafka-clustered-task-manager</name>
+    <name>kafka-clustered-task-scheduler</name>
 
     <description>The parent pom for cdibatch</description>
     <properties>

@@ -11,16 +11,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.Container;
+import net.oneandone.kafka.clusteredjobs.api.NodeInformation;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 
 /**
  * @author aschoerk
  */
-public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.api.Node {
+public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clusteredjobs.api.Node {
 
     static final long CONSUMER_POLL_TIME = 500L;
     Logger logger = LoggerFactory.getLogger(NodeImpl.class);
@@ -53,11 +55,13 @@ public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.ap
 
     private Set<Thread> handlerThreads = new HashSet<>();
     private Container container;
-
+    private NodeHeartbeat nodeHeartbeat;
+    private NodeInformationHandler nodeInformationHandler;
 
     public NodeImpl(Container container) {
         this.container = container;
         this.syncTopic = container.getSyncTopicName();
+        this.nodeId = nodeCounter.incrementAndGet();
         this.bootstrapServers = container.getBootstrapServers();
         try {
             hostname = Inet4Address.getLocalHost().getHostName();
@@ -101,7 +105,9 @@ public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.ap
     }
 
     public void run() {
-        nodeId = nodeCounter.incrementAndGet();
+        if (isRunning())
+            return;
+        nodeInformationHandler = new NodeInformationHandler(this);
         signalsReceivingThread = getContainer().createThread(() ->
         {
             Stoppable s = new SignalsWatcher(this);
@@ -120,23 +126,44 @@ public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.ap
         }
         );
         pendingHandlerThread.start();
+        setRunning();
+        while (!threadsRunning()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new KctmException("Interrupted while waiting for node startup",e);
+            }
+        }
+        this.nodeHeartbeat = NodeHeartbeat.NodeHeartBeatBuilder.aNodeHeartBeat().build();
+        nodeHeartbeat.getJob(this).run();
     }
 
     public String getUniqueNodeId() {
-        return hostname + "_" + processName + "_" + nodeId;
+        return processName + "_" + nodeId;
     }
 
     public Task register(TaskDefinition taskDefinition) {
+        if (!isRunning()) {
+            throw new KctmException("trying to register in not running node");
+        } else {
+            while (!threadsRunning()) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    throw new KctmException("Interrupted while waiting for node startup",e);
+                }
+            }
+        }
         Task task = new Task(taskDefinition);
         task.setNode(this);
         this.tasks.put(taskDefinition.getName(), task);
-        getSignalHandler().handle(task, SignalEnum.INITIATING_I);
+        getSignalHandler().handleInternal(task, SignalEnum.INITIATING_I);
         return task;
     }
 
     void releaseAllTasks() {
         tasks.values().forEach(t -> {
-            getSignalHandler().handle(t, SignalEnum.UNCLAIM_I);
+            getSignalHandler().handleInternal(t, SignalEnum.UNCLAIM_I);
         });
     }
 
@@ -155,7 +182,7 @@ public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.ap
         stoppables.forEach(s -> s.shutdown());
         stoppables.clear();
         tasks.entrySet().forEach(e -> {
-            getSignalHandler().handle(e.getValue(), SignalEnum.UNCLAIM_I);
+            getSignalHandler().handleInternal(e.getValue(), SignalEnum.UNCLAIM_I);
         });
         try {
             Thread.sleep(NodeImpl.CONSUMER_POLL_TIME + 1000);
@@ -206,5 +233,28 @@ public class NodeImpl implements Stoppable, net.oneandone.kafka.clusteredjobs.ap
 
     public Container getContainer() {
         return container;
+    }
+
+    @Override
+    public NodeInformation getNodeInformation() {
+        NodeInformationImpl result = new NodeInformationImpl(getUniqueNodeId());
+        tasks.entrySet().forEach(e -> {
+            Task task = e.getValue();
+            result.addTaskInformation(new NodeInformationImpl.TaskInformationImpl(task));
+        });
+        return result;
+    }
+
+    public boolean threadsRunning() {
+        return stoppables.stream().filter(s -> !s.isRunning()).findAny().isEmpty();
+    }
+
+    void sendHeartbeat() {
+        getSender().getSyncProducer().send(new ProducerRecord(syncTopic, getUniqueNodeId(),
+                KbXStream.jsonXStream.toXML(getNodeInformation())));
+    }
+
+    public NodeInformationHandler getNodeInformationHandler() {
+        return nodeInformationHandler;
     }
 }

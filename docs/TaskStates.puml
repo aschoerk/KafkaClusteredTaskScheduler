@@ -12,7 +12,7 @@ skinparam state {
   FontName Impact
 }
 
-
+state "NEW" as n <<Main>>
 state "INITIATING" as i <<Main>>
 state "CLAIMING" as cg <<Transient>>
 state "CLAIMED_BY_NODE(ME)" as cn <<Suspended>>
@@ -22,8 +22,13 @@ state "HANDLING_BY_OTHER" as ho <<Suspended>>
 state "ERROR" as e <<Error>>
 
 
-[*] -down-> i: start/create Task on node
+[*] -down-> n: start/create Task on node
 
+n -> e: xxxxxx<b>_I</b>
+n -down-> i: <b>INITIATING_I</b> || after some time
+n -> co: <b>CLAIMED_O</b>, <b>CLAIMING_O</b>
+n -> ho: <b>HANDLING_O</b>
+n -> i: <b>UNCLAIM_O</b>
 i -> co: <b>CLAIMING_O</b>,\n<b>CLAIMED_O</b>\narrived
 i -> ho: <b>HANDLING_O</b>\narrived
 i -down--> cg: waited for random time \ndepending on task period\nto minimize collisions

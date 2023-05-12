@@ -8,12 +8,16 @@ import java.time.Instant;
  */
 public abstract class TaskDefaults implements TaskDefinition {
 
-    private Instant initialTimestamp = Instant.ofEpochMilli(1682074899000L);
-    private Duration maxDuration = null;
-    private int maximumUncompletedExecutionsOnNode = 2;
-    private Duration claimedSignalPeriod = null;
-    private Long maxExecutionsOnNode = null;
-    private Duration resurrectionInterval = null;
+    protected Instant initialTimestamp = null;
+    protected Duration maxDuration = null;
+    protected int maximumUncompletedExecutionsOnNode = 2;
+    protected Duration claimedSignalPeriod = null;
+    protected Long maxExecutionsOnNode = null;
+    protected Duration resurrectionInterval = null;
+
+    protected TaskDefaults() {
+
+    }
 
     /**
      * initiate Taskstart-Modus as fixed Period from a Point in time
@@ -62,60 +66,12 @@ public abstract class TaskDefaults implements TaskDefinition {
     public Duration getResurrectionInterval() {
         if (resurrectionInterval == null) {
             resurrectionInterval = getClaimedSignalPeriod().multipliedBy(3);
+            if (resurrectionInterval.compareTo(getMaxDuration()) < 0) {
+                resurrectionInterval = getMaxDuration().multipliedBy(2);
+            }
         }
         return resurrectionInterval;
     }
 
 
-    public static class TaskDefaultsBuilder {
-        private Instant initialTimestamp;
-        private Duration maxDuration;
-        private int maximumUncompletedExecutionsOnNode;
-        private Duration claimedSignalPeriod;
-        private Long maxExecutionsOnNode;
-        private Duration resurrectionInterval;
-
-        protected TaskDefaultsBuilder() {}
-
-
-        public TaskDefaultsBuilder withInitialTimestamp(Instant initialTimestamp) {
-            this.initialTimestamp = initialTimestamp;
-            return this;
-        }
-
-        public TaskDefaultsBuilder withMaxDuration(Duration maxDuration) {
-            this.maxDuration = maxDuration;
-            return this;
-        }
-
-        public TaskDefaultsBuilder withMaximumUncompletedExecutionsOnNode(int maximumUncompletedExecutionsOnNode) {
-            this.maximumUncompletedExecutionsOnNode = maximumUncompletedExecutionsOnNode;
-            return this;
-        }
-
-        public TaskDefaultsBuilder withClaimedSignalPeriod(Duration claimedSignalPeriod) {
-            this.claimedSignalPeriod = claimedSignalPeriod;
-            return this;
-        }
-
-        public TaskDefaultsBuilder withMaxExecutionsOnNode(Long maxExecutionsOnNode) {
-            this.maxExecutionsOnNode = maxExecutionsOnNode;
-            return this;
-        }
-
-        public TaskDefaultsBuilder withResurrectionInterval(Duration resurrectionInterval) {
-            this.resurrectionInterval = resurrectionInterval;
-            return this;
-        }
-
-        public TaskDefaults build(TaskDefaults taskDefaults) {
-            taskDefaults.initialTimestamp = this.initialTimestamp;
-            taskDefaults.maximumUncompletedExecutionsOnNode = this.maximumUncompletedExecutionsOnNode;
-            taskDefaults.resurrectionInterval = this.resurrectionInterval;
-            taskDefaults.maxExecutionsOnNode = this.maxExecutionsOnNode;
-            taskDefaults.maxDuration = this.maxDuration;
-            taskDefaults.claimedSignalPeriod = this.claimedSignalPeriod;
-            return taskDefaults;
-        }
-    }
 }

@@ -240,23 +240,6 @@
         </dependencies>
     </dependencyManagement>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.jupiter.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-params</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest</artifactId>
-        </dependency>
-    </dependencies>
-
     <build>
         <pluginManagement>
             <plugins>
@@ -371,7 +354,7 @@
 
     <issueManagement>
         <system>GitHub</system>
-        <url>https://github.com/aschoerk/KafkaClusteredTaskManager/issues/</url>
+        <url>https://github.com/aschoerk/KafkaClusteredTaskScheduler/issues/</url>
     </issueManagement>
     <inceptionYear>2023</inceptionYear>
 
@@ -389,9 +372,9 @@
     </distributionManagement>
 
     <scm>
-        <url>https://github.com/aschoerk/KafkaClusteredTaskManager/</url>
-        <connection>scm:git:ssh://git@github.com/aschoerk/KafkaClusteredTaskManager.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/aschoerk/KafkaClusteredTaskManager.git</developerConnection>
+        <url>https://github.com/aschoerk/KafkaClusteredTaskScheduler/</url>
+        <connection>scm:git:ssh://git@github.com/aschoerk/KafkaClusteredTaskScheduler.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/aschoerk/KafkaClusteredTaskScheduler.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
 

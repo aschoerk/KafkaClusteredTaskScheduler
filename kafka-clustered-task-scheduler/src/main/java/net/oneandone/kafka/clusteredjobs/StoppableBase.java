@@ -14,6 +14,7 @@ public abstract class StoppableBase implements Stoppable {
     private ScheduledFuture<?> scheduledFuture = null;
     private Logger logger = LoggerFactory.getLogger(StoppableBase.class);
     private AtomicBoolean doShutdown = new AtomicBoolean(false);
+    private boolean running = false;
 
     public ScheduledFuture<?> getScheduledFuture() {
         return scheduledFuture;
@@ -55,6 +56,16 @@ public abstract class StoppableBase implements Stoppable {
 
     int getSleepTime() {
         return 100;
+    }
+
+    @Override
+    public void setRunning() {
+        this.running = true;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running && !doShutdown.get();
     }
 
 }

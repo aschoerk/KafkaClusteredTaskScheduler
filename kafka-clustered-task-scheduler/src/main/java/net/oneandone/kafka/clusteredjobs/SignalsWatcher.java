@@ -12,6 +12,7 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZE
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +31,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.oneandone.kafka.clusteredjobs.api.NodeInformation;
+
 
 /**
  * @author aschoerk
@@ -39,6 +42,8 @@ public class SignalsWatcher extends StoppableBase {
     Logger logger = LoggerFactory.getLogger(NodeImpl.class);
     private NodeImpl node;
     ConcurrentHashMap<String, ConcurrentHashMap<String, Signal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
+
+    ArrayList<NodeInformation> nodeInformations = new ArrayList<>();
     // no need to be threadsafe yet
 
 
@@ -120,9 +125,14 @@ public class SignalsWatcher extends StoppableBase {
 
 
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node))) {
-            Pair<TopicPartition, Long> startOffset = findConsumerPosition(getSyncingConsumerConfig(node), SEARCH_SYNC_OFFSET_TRIGGER);
-            consumer.assign(Collections.singletonList(startOffset.getLeft()));
-            consumer.seek(startOffset.getLeft(), startOffset.getRight());
+            setRunning();
+            List<PartitionInfo> partitionInfo = consumer.listTopics().get(node.syncTopic);
+            if(partitionInfo != null && partitionInfo.size() != 1) {
+                throw new KctmException("Either topic " + node.syncTopic + " not found or more than one partition defined");
+            }
+            PartitionInfo thePartitionInfo = partitionInfo.get(0);
+            TopicPartition partition = new TopicPartition(node.syncTopic, thePartitionInfo.partition());
+            consumer.assign(Collections.singletonList(partition));
             ConsumerRecords<String, String> records;
             while (!doShutdown()) {
                 records = consumer.poll(Duration.ofMillis(CONSUMER_POLL_TIME));
@@ -151,7 +161,7 @@ public class SignalsWatcher extends StoppableBase {
                             else {
                                 if(!node.taskPartition.equals(r.partition())) {
                                     logger.error("TaskManager may only synchronize via single-Partition Topic.");
-                                    throw new KctmException("TaskManager may only synchronize via single-Partition Topic.");
+                                    throw new KctmException("TaskScheduler may only synchronize via single-Partition Topic.");
                                 }
                             }
                             Object event = KbXStream.jsonXStream.fromXML(r.value());
@@ -175,17 +185,22 @@ public class SignalsWatcher extends StoppableBase {
                                 else {
                                     logger.warn("Received Signal from unknown task {}", signal);
                                 }
+                                task.setLastSignal(signal);
+                                logger.info("SignalHandler handle signal {} from {} for Task {}/{}", signal.signal,
+                                        signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
+                                signal.signal.handle(node.getSignalHandler(), task, signal);
                             }
-                            else {
+                            else if (event instanceof NodeInformation) {
+                                NodeInformationImpl nodeInformation = (NodeInformationImpl) event;
+                                nodeInformation.setOffset(r.offset());
+                                nodeInformation.setArrivalTime(node.getNow());
+                                nodeInformations.add(nodeInformation);
+                                node.getNodeInformationHandler().handle(nodeInformation);
+                            } else {
                                 throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
                             }
                         }
                     });
-                    logger.info("Received {} signals",lastSignalPerTaskAndNode.entrySet().size());
-                    lastSignalPerTaskAndNode.entrySet().forEach(e -> {
-                        node.getSignalHandler().handle(e.getKey(), e.getValue());
-                    });
-                    lastSignalPerTaskAndNode.clear();
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
@@ -208,7 +223,7 @@ public class SignalsWatcher extends StoppableBase {
         syncingConsumerConfig.put(MAX_POLL_RECORDS_CONFIG, 100);
         syncingConsumerConfig.put(MAX_POLL_INTERVAL_MS_CONFIG, 5000);
         syncingConsumerConfig.put(GROUP_ID_CONFIG, nodeP.getUniqueNodeId());
-        syncingConsumerConfig.put(AUTO_OFFSET_RESET_CONFIG, "earliest");
+        syncingConsumerConfig.put(AUTO_OFFSET_RESET_CONFIG, "latest");
         return syncingConsumerConfig;
     }
 

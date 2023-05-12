@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
+import net.oneandone.kafka.clusteredjobs.api.Node;
+
 /**
  *  Signal represents Kafka-Events used to initiate state-transitions on Nodes
  */
@@ -101,7 +103,7 @@ public class Signal implements Comparable<Signal> {
         return handled;
     }
 
-    public boolean equalNode(final NodeImpl node) {
+    public boolean equalNode(final Node node) {
         return node.getUniqueNodeId().equals(this.nodeProcThreadId);
     }
 

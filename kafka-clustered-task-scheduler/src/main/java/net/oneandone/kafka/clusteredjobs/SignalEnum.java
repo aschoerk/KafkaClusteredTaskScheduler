@@ -8,15 +8,7 @@ public enum SignalEnum implements SignalInterface {
      *  signal Task is initiated, who is able to execute it may try to claim it
      *  if multiple node do initiating, check if parameters
      */
-    /**
-     * starting to initiate Task on this node
-     */
-    INITIATING {
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.initiatingEvent(task, s);
-        }
-    },
+
     /**
      * This node is prepared to CLAIM the task
      */
@@ -29,16 +21,18 @@ public enum SignalEnum implements SignalInterface {
     /**
      * This node CLAIMED the task
      */
-    CLAIMED {
+    HEARTBEAT {
+        // inform other nodes that task is claimed by this node in a periodical manner
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claimedEvent(task, s);
+            signalHandler.heartbeatEvent(task, s);
         }
     },
     /**
      * This node is currently handling the task
      */
     HANDLING {
+        // the node having claimed a task did start the handling. During that period no heartbeats-signals are sent.
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
             signalHandler.handlingEvent(task, s);
@@ -50,13 +44,28 @@ public enum SignalEnum implements SignalInterface {
     UNCLAIMED {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.unclaimEvent(task, s);
+            signalHandler.unclaimedEvent(task, s);
         }
     },
-    CLAIMED_YET {
+    CLAIMED {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claimedYetEvent(task, s);
+            signalHandler.claimedEvent(task, s);
+        }
+    },
+
+    DOHEARTBEAT {
+        @Override
+        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
+            signalHandler.doheartbeat(task, s);
+        }
+    },
+
+    NEW_I {
+        public boolean isInternal() { return true; }
+        @Override
+        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
+            signalHandler.new_i(task, s);
         }
     },
 
@@ -76,11 +85,11 @@ public enum SignalEnum implements SignalInterface {
         }
     },
 
-    CLAIMED_I {
+    HEARTBEAT_I {
         public boolean isInternal() { return true; }
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claimed_i(task, s);
+            signalHandler.heartbeat_i(task, s);
         }
     },
 

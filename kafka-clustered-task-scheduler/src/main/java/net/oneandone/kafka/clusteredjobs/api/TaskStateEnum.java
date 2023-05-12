@@ -1,10 +1,11 @@
-package net.oneandone.kafka.clusteredjobs;
+package net.oneandone.kafka.clusteredjobs.api;
 
 /**
  * The state of a Task on a node
  */
 public enum TaskStateEnum {
 
+    NEW,
     INITIATING, // initiates the claiming
     CLAIMING, // sent availability for executing the task
     CLAIMED_BY_OTHER,  // there is another node responsible for executing the task

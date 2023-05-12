@@ -19,14 +19,13 @@ public class Sender {
 
     private final NodeImpl node;
     private final String syncTopic;
-    private final KafkaProducer syncProducer;
+    private KafkaProducer syncProducer;
+    private Map<String, Object> config;
 
     public Sender(NodeImpl node) {
         this.node = node;
         this.syncTopic = node.syncTopic;
-        Map<String, Object> config = getConfig(node);
-
-        this.syncProducer = new KafkaProducer(config);
+        config = getConfig(node);
     }
 
     static Map<String, Object> getConfig(final NodeImpl node) {
@@ -52,11 +51,14 @@ public class Sender {
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
         toSend.timestamp = Instant.now(node.getClock());
-        syncProducer.send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
+        getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
         syncProducer.flush();
     }
 
     KafkaProducer getSyncProducer() {
+        if (syncProducer == null) {
+            this.syncProducer = new KafkaProducer(config);
+        }
         return syncProducer;
     }
 }
