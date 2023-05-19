@@ -13,7 +13,7 @@ import net.oneandone.kafka.clusteredjobs.support.TestContainer;
  */
 public abstract class TestBase {
 
-    Logger logger = LoggerFactory.getLogger(TestBase.class);
+    static Logger logger = LoggerFactory.getLogger("KafkaClusteredTaskSchedulerTest");
 
     @Inject
     private TestResources testResources;
@@ -30,7 +30,7 @@ public abstract class TestBase {
     }
 
     protected NodeImpl newNode() {
-        NodeImpl result = new NodeImpl(new TestContainer(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers()));
+        NodeImpl result = new NodeImpl(new TestContainer(TestResources.SYNC_TOPIC, testResources.getCluster().bootstrapServers()), new NodeFactoryImpl());
         result.run();
         return result;
     }

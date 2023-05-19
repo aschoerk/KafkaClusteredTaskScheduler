@@ -2,47 +2,52 @@ package net.oneandone.kafka.clusteredjobs;
 
 import java.time.Instant;
 import java.util.Comparator;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * future Task to be done by PendingHandler
  */
-public class PendingEntry implements Comparable<PendingEntry> {
-
-    static AtomicLong idFactory = new AtomicLong(1L);
-
-    final Long id = idFactory.getAndIncrement();
+public class PendingEntry  {
 
     private Instant schedulingTime;
 
-    final private Runnable pendingTask;
+    final private Runnable pendingRunnable;
 
     final private String identifier;
 
-    public PendingEntry(Instant schedulingTime, String identifier, Runnable pendingTask) {
+    /**
+     * Scheduled Task
+     * @param schedulingTime time to execute the task
+     * @param identifier the identifier unique to allow identifying and replacing
+     * @param pendingRunnable the task to be executed at schedulingTime
+     */
+    public PendingEntry(Instant schedulingTime, String identifier, Runnable pendingRunnable) {
         this.schedulingTime = schedulingTime;
-        this.pendingTask = pendingTask;
+        this.pendingRunnable = pendingRunnable;
         this.identifier = identifier;
     }
+
+    /**
+     * return the time when the runnable is to be started
+     * @return  the time when the runnable is to be started
+     */
     public Instant getSchedulingTime() {
         return schedulingTime;
     }
 
-    public Runnable getPendingTask() {
-        return pendingTask;
+    /**
+     * return the runnable to be started at schedulingTime
+     * @return the runnable to be started at schedulingTime
+     */
+    public Runnable getPendingRunnable() {
+        return pendingRunnable;
     }
 
+    /**
+     * Return the identifier by which the unique pending entry can be found
+     * @return  the identifier by which the unique pending entry can be found
+     */
     public String getIdentifier() {
         return identifier;
-    }
-
-    public Long getId() {
-        return id;
-    }
-    @Override
-    public int compareTo(final PendingEntry o) {
-        return schedulingTime.compareTo(o.schedulingTime);
     }
 
     @Override
@@ -54,28 +59,31 @@ public class PendingEntry implements Comparable<PendingEntry> {
             return false;
         }
         PendingEntry that = (PendingEntry) o;
-        return id.equals(that.id);
+        return identifier.equals(that.identifier);
     }
 
     @Override
     public int hashCode() {
-        return id.hashCode();
+        return identifier.hashCode();
     }
 
     @Override
     public String toString() {
         return "PendingEntry{" +
-               "id=" + id +
                ", schedulingTime=" + schedulingTime +
                ", identifier='" + identifier + '\'' +
                '}';
     }
 
+
+    /**
+     * Comparator used to order PendingEntries in Treemap so the next to be done is always the first.
+     */
     public static class TimestampComparator implements Comparator<PendingEntry> {
         @Override
         public int compare(final PendingEntry o1, final PendingEntry o2) {
             int result = o1.schedulingTime.compareTo(o2.schedulingTime);
-            return result != 0 ? result : o1.id.compareTo(o2.id);
+            return result != 0 ? result : o1.identifier.compareTo(o2.identifier);
         }
     }
 }

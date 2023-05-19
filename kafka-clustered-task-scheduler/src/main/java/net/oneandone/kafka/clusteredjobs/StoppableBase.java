@@ -16,16 +16,6 @@ public abstract class StoppableBase implements Stoppable {
     private AtomicBoolean doShutdown = new AtomicBoolean(false);
     private boolean running = false;
 
-    public ScheduledFuture<?> getScheduledFuture() {
-        return scheduledFuture;
-    }
-
-    public void setScheduledFuture(final ScheduledFuture<?> scheduledFutureP) {
-        if(this.scheduledFuture != null) {
-            logger.error("Expected scheduledFuture to be null, should init only once");
-        }
-        this.scheduledFuture = scheduledFutureP;
-    }
 
     @Override
     public void shutdown() {
@@ -35,6 +25,10 @@ public abstract class StoppableBase implements Stoppable {
         }
     }
 
+    /**
+     * ask if a Stoppable should shut down
+     * @return true if the stoppable shut shutdown.
+     */
     protected boolean doShutdown() {
         if(doShutdown.get()) {
             logger.trace("doShutdown true");
@@ -45,6 +39,10 @@ public abstract class StoppableBase implements Stoppable {
         }
     }
 
+    /**
+     * initialize a threadname so that it is uniquely recognizable
+     * @param name the base of the generated threadname.
+     */
     protected void initThreadName(final String name) {
         String threadName = String.format("KCTM_%010d_%05d_%s_%5d",
                 Thread.currentThread().getContextClassLoader().hashCode(),
@@ -52,10 +50,6 @@ public abstract class StoppableBase implements Stoppable {
                 String.format("%-7s",name).substring(0,7), threadIx.incrementAndGet());
         Thread.currentThread().setName(threadName);
         logger.trace("Initialized Name of Thread with Id: {}", Thread.currentThread().getId());
-    }
-
-    int getSleepTime() {
-        return 100;
     }
 
     @Override

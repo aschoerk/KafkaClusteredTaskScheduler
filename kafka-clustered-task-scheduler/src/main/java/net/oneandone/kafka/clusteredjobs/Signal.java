@@ -40,7 +40,7 @@ public class Signal implements Comparable<Signal> {
      */
     private transient boolean handled = false;
 
-    protected Signal(final Task task, final SignalEnum signal) {
+    Signal(final Task task, final SignalEnum signal) {
         this.taskName = task.getDefinition().getName();
         this.signal = signal;
         this.nodeProcThreadId = task.getNode().getUniqueNodeId();
@@ -48,14 +48,40 @@ public class Signal implements Comparable<Signal> {
         this.currentOffset = -1L;
     }
 
+    /**
+     * necessary for creation after Signal arrived from sync-topic
+     */
     public Signal() {
 
     }
 
+    /**
+     * constructor used internally if signal for an unknown task arrived
+     * @param sender the uniqueNodeId of the sender
+     * @param taskName the task the signal is related to
+     * @param signal the SignalEnum
+     * @param timestamp the time the signal has been created.
+     */
+    public Signal(final String sender, String taskName, final SignalEnum signal, Instant timestamp) {
+        this.taskName = taskName;
+        this.signal = signal;
+        this.nodeProcThreadId = sender;
+        this.timestamp = timestamp;
+        this.currentOffset = -1L;
+    }
+
+    /**
+     * get offset as indicated from sync-topic
+     * @return the offset in singular partition of sync-topic
+     */
     public Optional<Long> getCurrentOffset() {
         return Optional.ofNullable(currentOffset);
     }
 
+    /**
+     * set offset in partition if signal arrived from sync-topic
+     * @param currentOffsetP the offset in partition if signal arrived from sync-topic
+     */
     public void setCurrentOffset(final long currentOffsetP) {
         this.currentOffset = currentOffsetP;
     }
@@ -99,10 +125,12 @@ public class Signal implements Comparable<Signal> {
         }
     }
 
-    public boolean isHandled() {
-        return handled;
-    }
 
+    /**
+     * check if signal is sent by a certain node
+     * @param node the node to be check the signal for
+     * @return true of th signal was sent by node.
+     */
     public boolean equalNode(final Node node) {
         return node.getUniqueNodeId().equals(this.nodeProcThreadId);
     }

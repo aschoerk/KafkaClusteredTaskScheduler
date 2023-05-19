@@ -5,15 +5,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import net.oneandone.kafka.clusteredjobs.api.NodeInformation;
+import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
 import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
 
 /**
  * @author aschoerk
  */
-public class NodeInformationImpl implements NodeInformation {
+class NodeTaskInformationImpl implements NodeTaskInformation {
 
-    public NodeInformationImpl(final String name) {
+    NodeTaskInformationImpl(final String name) {
         this.name = name;
     }
 
@@ -39,10 +39,18 @@ public class NodeInformationImpl implements NodeInformation {
         return Optional.ofNullable(arrivalTime);
     }
 
+    /**
+     * in case of the object arrived as event, the offset where the event must be set using this
+     * @param offset the offset in the one kafka-partition of the topic
+     */
     public void setOffset(final Long offset) {
         this.offset = offset;
     }
 
+    /**
+     * set the time the event arrived.
+     * @param arrivalTime the time the event arrived
+     */
     public void setArrivalTime(final Instant arrivalTime) {
         this.arrivalTime = arrivalTime;
     }

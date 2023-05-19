@@ -1,6 +1,5 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,7 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author aschoerk
+ * The one component used by the node components to send signals via sync-topic
  */
 public class Sender {
     static Logger logger = LoggerFactory.getLogger(Sender.class);
@@ -22,6 +21,10 @@ public class Sender {
     private KafkaProducer syncProducer;
     private Map<String, Object> config;
 
+    /**
+     * create the SignalSender for this node
+     * @param node the node the sender to create for.
+     */
     public Sender(NodeImpl node) {
         this.node = node;
         this.syncTopic = node.syncTopic;
@@ -37,13 +40,7 @@ public class Sender {
         return config;
     }
 
-    void sendAsynchronous(Task t, SignalEnum signal) {
-        node.getContainer().createThread(() -> {
-            sendSynchronous(t, signal);
-        }).start();
-    }
-
-    void sendSynchronous(final Task t, final SignalEnum signal) {
+    void sendSignal(final Task t, final SignalEnum signal) {
         logger.info("Sending from N: {} for task {} int State: {} Signal: {}",
                                         node.getUniqueNodeId(),
                 t != null ? t.getDefinition().getName() : "NodeTask", t != null ? t.getLocalState() : "null", signal);
@@ -55,7 +52,7 @@ public class Sender {
         }
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
-        toSend.timestamp = Instant.now(node.getClock());
+        toSend.timestamp = node.getNow();
         getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
         syncProducer.flush();
     }

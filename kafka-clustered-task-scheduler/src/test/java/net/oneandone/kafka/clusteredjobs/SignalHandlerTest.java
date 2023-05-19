@@ -1,22 +1,65 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.SignalEnum.DOHEARTBEAT;
 import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.ERROR;
 import static net.oneandone.kafka.clusteredjobs.support.HeartBeatTask.HeartBeatTaskBuilder.aHeartBeatTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.HashMap;
+import java.util.Optional;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import net.oneandone.kafka.clusteredjobs.api.Container;
 import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
 import net.oneandone.kafka.clusteredjobs.support.HeartBeatTask;
 import net.oneandone.kafka.clusteredjobs.support.TestContainer;
 
 public class SignalHandlerTest {
-    SignalEnum signalSent = null;
+
+    static class TestNodeFactory extends NodeFactoryImpl {
+        SignalEnum signalSent = null;
+        @Override
+        public Sender createSender(final NodeImpl node) {
+            return  new Sender(node) {
+                @Override
+                void sendSignal(final Task t, final SignalEnum signal) {
+                    signalSent = signal;
+                }
+            };
+        }
+
+        @Override
+        public NodeTaskInformationHandler createNodeTaskInformationHandler(final NodeImpl node) {
+            return new NodeTaskInformationHandler(node) {
+                @Override
+                Optional<Pair<String, SignalEnum>> getUnknownTaskSignal(final String taskname) {
+                    return Optional.empty();
+                }
+            };
+        }
+
+        @Override
+        public SignalsWatcher createSignalsWatcher(final NodeImpl node) {
+            return new SignalsWatcher(node)  {
+                @Override
+                public void run() {
+                    setRunning();
+                    synchronized (node) {
+                        node.notify();
+                    }
+                }
+
+                @Override
+                void readOldSignals() {
+                    ;
+                }
+            };
+        }
+    }
+
 
     @ParameterizedTest
     @CsvSource({
@@ -41,7 +84,7 @@ public class SignalHandlerTest {
             "CLAIMING,a,HANDLING_BY_NODE,HANDLING_BY_NODE,CLAIMED",  // loser in competition
             "CLAIMING,ME,NEW,ERROR,",  // I did wrong
             "CLAIMING,ME,INITIATING,ERROR,",  // I did wrong
-            "CLAIMING,ME,CLAIMING,CLAIMED_BY_NODE,CLAIMED", // I was first
+            "CLAIMING,ME,CLAIMING,CLAIMED_BY_NODE,", // I was first
             "CLAIMING,ME,CLAIMED_BY_OTHER,CLAIMED_BY_OTHER,",
             "CLAIMING,ME,HANDLING_BY_OTHER,HANDLING_BY_OTHER,",
             "CLAIMING,ME,CLAIMED_BY_NODE,ERROR,",
@@ -49,7 +92,7 @@ public class SignalHandlerTest {
             "CLAIMED,a,NEW,CLAIMED_BY_OTHER,",  //
             "CLAIMED,a,INITIATING,ERROR,",  // CLAIMING should have been seen first
             "CLAIMED,a,CLAIMING,ERROR,", // CLAIMING should have arrived earlier
-            "CLAIMED,a,CLAIMED_BY_OTHER,ERROR,",  // because possible discrepancy in executing node
+            "CLAIMED,a,CLAIMED_BY_OTHER,CLAIMED_BY_OTHER,",  // because of preventing answer from other node
             "CLAIMED,a,HANDLING_BY_OTHER,ERROR,",  // there should have been a HANDLING
             "CLAIMED,a,CLAIMED_BY_NODE,ERROR,",  // error in protocol
             "CLAIMED,a,HANDLING_BY_NODE,ERROR,",  // there should have been a UNCLAIMED, CLAIMING
@@ -104,17 +147,14 @@ public class SignalHandlerTest {
             "UNCLAIMED,ME,HANDLING_BY_NODE,ERROR,",  // error in protocol CLAIMED,HANDLING by me should have arrived earlier
     })
     void testStateEngine(SignalEnum signal, String senderNode, TaskStateEnum localState, TaskStateEnum newState, SignalEnum expectedSignal) {
-        NodeImpl node = new NodeImpl(new TestContainer(TestResources.SYNC_TOPIC, "dummyNodes"));
+        final TestContainer container = new TestContainer(TestResources.SYNC_TOPIC, "dummyNodes");
+        final TestNodeFactory nodeFactory = new TestNodeFactory();
+        NodeImpl node = new NodeImpl(container, nodeFactory);
+        node.run();
         if(senderNode.equals("ME")) {
             senderNode = node.getUniqueNodeId();
         }
-        Sender dummySender = new Sender(node) {
-            @Override
-            void sendSynchronous(final Task t, final SignalEnum signal) {
-                signalSent = signal;
-            }
-        };
-        node.setSender(dummySender);
+
         HeartBeatTask heartBeatTask = aHeartBeatTask().build();
         Task task = node.register(heartBeatTask);
         task.localState = localState;
@@ -130,18 +170,15 @@ public class SignalHandlerTest {
 
         Assertions.assertEquals(newState, task.getLocalState());
         if(expectedSignal != null) {
-            Assertions.assertEquals(expectedSignal, signalSent);
-        }
-        else {
-            Assertions.assertEquals(DOHEARTBEAT, signalSent);
+            Assertions.assertEquals(expectedSignal, nodeFactory.signalSent);
         }
 
         if(signal.isInternal()) {
             signalReceived.nodeProcThreadId = node.getUniqueNodeId() + "X";
-            signalSent = null;
+            nodeFactory.signalSent = null;
             node.getSignalHandler().handle(heartBeatTask.getName(), map);
             assertEquals(ERROR, task.getLocalState());
-            Assertions.assertNull(signalSent);
+            Assertions.assertNull(nodeFactory.signalSent);
         }
 
     }

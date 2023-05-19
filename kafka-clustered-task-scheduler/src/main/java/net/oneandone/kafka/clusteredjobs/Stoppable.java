@@ -5,10 +5,19 @@ package net.oneandone.kafka.clusteredjobs;
  */
 public interface Stoppable extends Runnable {
 
+    /**
+     * indicate that initialization is completed.
+     */
     void setRunning();
+
+    /**
+     * initiate shutting down of the Thread/Job/Component
+     */
     void shutdown();
 
-    void run();
-
+    /**
+     * setRunning has been called
+     * @return setRunning has been called
+     */
     boolean isRunning();
 }

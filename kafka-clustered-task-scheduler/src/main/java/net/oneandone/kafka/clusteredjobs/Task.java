@@ -8,13 +8,14 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.oneandone.kafka.clusteredjobs.api.Node;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
 
 /**
  * @author aschoerk
  */
-public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
+class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     private final TaskDefinition taskDefinition;
     Logger logger = LoggerFactory.getLogger(Task.class);
@@ -32,7 +33,8 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     int executionsOnNode = 0;
     private Signal lastSignal = null;
 
-    Task(TaskDefinition taskDefinition) {
+    Task(Node node, TaskDefinition taskDefinition) {
+        this.node = node;
         this.taskDefinition = taskDefinition;
     }
 
@@ -109,15 +111,6 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     public net.oneandone.kafka.clusteredjobs.api.Node getNode() {
         return node;
-    }
-
-    public void setNode(final net.oneandone.kafka.clusteredjobs.api.Node node) {
-        if(this.node != null) {
-            if(node.getUniqueNodeId().equals(this.node.getUniqueNodeId())) {
-                throw new KctmException("Setting NodeImpl in Task possible only once.");
-            }
-        }
-        this.node = node;
     }
 
     @Override

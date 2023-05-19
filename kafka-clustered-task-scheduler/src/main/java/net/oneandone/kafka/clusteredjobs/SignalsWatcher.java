@@ -10,8 +10,6 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_
 import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,9 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
@@ -31,7 +28,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.oneandone.kafka.clusteredjobs.api.NodeInformation;
+import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
+import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
 
 
 /**
@@ -43,72 +41,24 @@ public class SignalsWatcher extends StoppableBase {
     private NodeImpl node;
     ConcurrentHashMap<String, ConcurrentHashMap<String, Signal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
 
-    ArrayList<NodeInformation> nodeInformations = new ArrayList<>();
+    transient ConsumerData watcherStarting;
     // no need to be threadsafe yet
 
 
+    /**
+     * The partition information before the first event gets consumed.
+     * @return the partition information before the first event gets consumed.
+     */
+    public ConsumerData getWatcherStarting() {
+        return watcherStarting;
+    }
+
+    /**
+     * create the SignalsWatcher for node
+     * @param node the node the SignalsWatcher is destined for.
+     */
     public SignalsWatcher(NodeImpl node) {
         this.node = node;
-    }
-
-    Pair<TopicPartition, Long> findConsumerPosition(Map<String, Object> consumerConfig, long searchSyncOffsetTrigger) {
-        consumerConfig.put(MAX_POLL_RECORDS_CONFIG, 1);
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerConfig)) {
-            List<PartitionInfo> partitionInfo = consumer.listTopics().get(node.syncTopic);
-            if(partitionInfo != null && partitionInfo.size() != 1) {
-                throw new KctmException("Either topic " + node.syncTopic + " not found or more than one partition defined");
-            }
-            else {
-                PartitionInfo thePartitionInfo = partitionInfo.get(0);
-                TopicPartition partition = new TopicPartition(node.syncTopic, thePartitionInfo.partition());
-                consumer.assign(Collections.singletonList(partition));
-                // consumer.subscribe(Collections.singletonList(node.syncTopic));
-                Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
-                Map<TopicPartition, Long> endOffsets = consumer.endOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
-                if(endOffsets.size() != 1 && beginningOffsets.size() != 1) {
-                    throw new KctmException("Could not get information about sync Topic in time");
-                }
-                long endOffset = endOffsets.get(partition).longValue();
-                long beginningOffset = beginningOffsets.get(partition).longValue();
-                if((endOffset - beginningOffset) > searchSyncOffsetTrigger) {
-                    boolean lowerOffsetFound = false;
-                    while (!lowerOffsetFound) {
-                        long medium = beginningOffset + (endOffset - beginningOffset) / 2L;
-                        consumer.seek(partition, medium);
-                        ConsumerRecords<String, String> records = consumer.poll(1000);
-                        if(records.count() > 1) {
-                            throw new KctmException("Normally only one record should get returned using this config");
-                        }
-                        else if(records.count() == 0) {
-                            logger.warn("Expected record to be returned, repeat consume");
-                            continue;
-                        }
-                        final ConsumerRecord<String, String> record = records.iterator().next();
-                        Object event = KbXStream.jsonXStream.fromXML(record.value());
-                        if(!(event instanceof Signal)) {
-                            throw new KctmException("Expected only Signal Objects in sync-topic but was: " + event.getClass().getName());
-                        }
-                        final Signal signal = (Signal) event;
-                        if(signal.timestamp.isAfter(getNow().minus(node.MAX_AGE_OF_SIGNAL, ChronoUnit.MILLIS))) {
-                            endOffset = medium;
-                        }
-                        else {
-                            beginningOffset = medium;
-                        }
-                        lowerOffsetFound = endOffset - beginningOffset <= 1;
-                    }
-                    return Pair.of(partition, beginningOffset);
-                }
-                return Pair.of(partition, beginningOffset);
-            }
-        }
-        // get the earliest and latest offsets for the partition
-
-
-    }
-
-    private Instant getNow() {
-        return Instant.now(node.getClock());
     }
 
 
@@ -118,21 +68,99 @@ public class SignalsWatcher extends StoppableBase {
         boolean useSetOne = true;
     }
 
+    static NodeTaskInformation nullNodeTaskInformation = new NodeTaskInformationImpl("Empty");
+
+    Map<String, NodeTaskInformation> lastNodeInformation = new ConcurrentHashMap<>();
+
+    private ArrayList<Signal> oldSignals = new ArrayList<>();
+
+    private ArrayList<Signal> unmatchedSignals = new ArrayList();
+
+
+    void readOldSignals() {
+        Map<String, Object> consumerConfig = getSyncingConsumerConfig(node);
+        consumerConfig.put(MAX_POLL_RECORDS_CONFIG, 100);
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerConfig)) {
+            ConsumerData consumerData = initConsumer(consumer);
+            long endOffset = watcherStarting.endOffset;
+            AtomicBoolean done = new AtomicBoolean(false);
+            while (!done.get() && endOffset >= consumerData.startOffset) {
+                long startoffset = endOffset - 100;
+                if(startoffset < consumerData.startOffset) {
+                    startoffset = consumerData.startOffset;
+                }
+                long offset = startoffset;
+                do {
+                    consumer.seek(consumerData.partition, offset);
+                    ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                    records.forEach(r -> {
+                        Object event = KbXStream.jsonXStream.fromXML(r.value());
+                        if(event instanceof Signal) {
+                            Signal signal = (Signal) event;
+                            signal.setCurrentOffset(r.offset());
+                            oldSignals.add(signal);
+                        }
+                        else {
+                            NodeTaskInformationImpl nodeInformation = (NodeTaskInformationImpl) event;
+                            nodeInformation.setOffset(r.offset());
+                            NodeTaskInformation existing = lastNodeInformation.get(nodeInformation.getName());
+                            if(existing == null || existing.getOffset().get() < nodeInformation.getOffset().get()) {
+                                lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
+                            }
+                        }
+                    });
+                    offset += records.count();
+                } while (offset < endOffset);
+                endOffset = startoffset - 1;
+            }
+        }
+        identifyOldNodeInformation();
+    }
+
+    private void identifyOldNodeInformation() {
+        // principle: remove NodeTaskInformation which contradicts with more recent information
+        HashMap<String, NodeTaskInformation> reducedNodeInformation = lastNodeInformation
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue().getName().equals(e.getKey()))
+                .map(e -> e.getValue())
+                .sorted((e1, e2) -> -e1.getOffset().get().compareTo(e2.getOffset().get()))
+                .reduce(new HashMap<String, NodeTaskInformation>(),
+                        (result, e) -> {
+                            e.getTaskInformation().stream().forEach(ti -> {
+                                if((ti.getState() == TaskStateEnum.CLAIMED_BY_NODE || ti.getState() == TaskStateEnum.HANDLING_BY_NODE)
+                                   && !result.containsKey(ti.getTaskName())) {
+                                    result.put(ti.getTaskName(), e);
+                                }
+                            });
+                            return result;
+                        }, (a, b) -> null)
+                .entrySet()
+                .stream()
+                .reduce(new HashMap<String, NodeTaskInformation>(), (result, e) -> {
+                    result.put(e.getValue().getName(), e.getValue());
+                    return result;
+                }, (a, b) -> null);
+        lastNodeInformation.keySet().forEach(k -> {
+            if (lastNodeInformation.get(k).getTaskInformation().size() > 0 && !reducedNodeInformation.containsKey(k))
+                lastNodeInformation.put(k, nullNodeTaskInformation);
+        });
+        node.getNodeTaskInformationHandler().setSignalsWatcher(this);
+    }
+
     public void run() {
         initThreadName(this.getClass().getSimpleName());
 
         final OffsetContainer oC = new OffsetContainer();
 
-
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node))) {
             setRunning();
-            List<PartitionInfo> partitionInfo = consumer.listTopics().get(node.syncTopic);
-            if(partitionInfo != null && partitionInfo.size() != 1) {
-                throw new KctmException("Either topic " + node.syncTopic + " not found or more than one partition defined");
+            synchronized (node) {
+                watcherStarting = initConsumer(consumer);
+                logger.info("Going to notify about SignalWatcher Topic consumer init.");
+                node.notify();
+                logger.info("End   of notify about SignalWatcher Topic consumer init.");
             }
-            PartitionInfo thePartitionInfo = partitionInfo.get(0);
-            TopicPartition partition = new TopicPartition(node.syncTopic, thePartitionInfo.partition());
-            consumer.assign(Collections.singletonList(partition));
             ConsumerRecords<String, String> records;
             while (!doShutdown()) {
                 records = consumer.poll(Duration.ofMillis(CONSUMER_POLL_TIME));
@@ -174,7 +202,7 @@ public class SignalsWatcher extends StoppableBase {
 
                                 if(task == null && signal.signal == SignalEnum.DOHEARTBEAT) {
                                     logger.debug("Node: {} triggering NodeHeartBeat beause of DOHEARTBEAT", node.getUniqueNodeId());
-                                    node.getPendingHandler().scheduleNodeHeartBeat(node.getNodeHeartbeat().getJob(node), node.getNow());
+                                    node.getPendingHandler().scheduleNodeHeartBeat(node.getNodeHeartbeat().getCode(node), node.getNow());
                                 }
                                 else if(task != null) {
                                     logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(),
@@ -193,16 +221,18 @@ public class SignalsWatcher extends StoppableBase {
                                     logger.info("SignalHandler handle signal {} from {} for Task {}/{}", signal.signal,
                                             signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
                                     signal.signal.handle(node.getSignalHandler(), task, signal);
-                                } else {
-                                    logger.warn("Received Signal from unknown task {}", signal);
+                                }
+                                else {
+                                    logger.info("Received Signal from unknown task {}", signal);
+                                    unmatchedSignals.add(signal);
                                 }
                             }
-                            else if(event instanceof NodeInformation) {
-                                NodeInformationImpl nodeInformation = (NodeInformationImpl) event;
+                            else if(event instanceof NodeTaskInformation) {
+                                NodeTaskInformationImpl nodeInformation = (NodeTaskInformationImpl) event;
                                 nodeInformation.setOffset(r.offset());
                                 nodeInformation.setArrivalTime(node.getNow());
-                                nodeInformations.add(nodeInformation);
-                                node.getNodeInformationHandler().handle(nodeInformation);
+                                lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
+                                node.getNodeTaskInformationHandler().handle(nodeInformation);
                             }
                             else {
                                 throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
@@ -225,6 +255,47 @@ public class SignalsWatcher extends StoppableBase {
         }
     }
 
+    static class ConsumerData {
+        public ConsumerData(final long startOffset, final long endOffset, final TopicPartition partition) {
+            this.startOffset = startOffset;
+            this.endOffset = endOffset;
+            this.partition = partition;
+        }
+
+        public ConsumerData(final TopicPartition partition) {
+            this.startOffset = -1L;
+            this.endOffset = -1L;
+            this.partition = partition;
+        }
+
+        boolean noOffsets() {
+            return startOffset < 0 || endOffset < 0;
+        }
+
+
+        long startOffset;
+        long endOffset;
+        TopicPartition partition;
+    }
+
+    private ConsumerData initConsumer(final KafkaConsumer<String, String> consumer) {
+        List<PartitionInfo> partitionInfo = consumer.listTopics().get(node.syncTopic);
+        if(partitionInfo != null && partitionInfo.size() != 1) {
+            throw new KctmException("Either topic " + node.syncTopic + " not found or more than one partition defined");
+        }
+        PartitionInfo thePartitionInfo = partitionInfo.get(0);
+        TopicPartition partition = new TopicPartition(node.syncTopic, thePartitionInfo.partition());
+        consumer.assign(Collections.singletonList(partition));
+        Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
+        Map<TopicPartition, Long> endOffsets = consumer.endOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
+        if(endOffsets.size() != 1 && beginningOffsets.size() != 1) {
+            return new ConsumerData(partition);
+        }
+        long endOffset = endOffsets.get(partition).longValue();
+        long beginningOffset = beginningOffsets.get(partition).longValue();
+        return new ConsumerData(beginningOffset, endOffset, partition);
+    }
+
     static Map<String, Object> getSyncingConsumerConfig(final NodeImpl nodeP) {
         Map<String, Object> syncingConsumerConfig = new HashMap<>();
         syncingConsumerConfig.put(BOOTSTRAP_SERVERS_CONFIG, nodeP.bootstrapServers);
@@ -237,4 +308,28 @@ public class SignalsWatcher extends StoppableBase {
         return syncingConsumerConfig;
     }
 
+    /**
+     * A map of the most recent nodeinformation arrived from other nodes or nullNodeTaskInformation if the node is
+     *      * identified as not running anymore.
+     * @return A map of the most recent nodeinformation arrived from other nodes
+     */
+    public Map<String, NodeTaskInformation> getLastNodeInformation() {
+        return lastNodeInformation;
+    }
+
+    /**
+     * signals older than the first signal consumed by the SignalWatcher
+     * @return relevant signals older than the first signal consumed by the SignalWatcher
+     */
+    public ArrayList<Signal> getOldSignals() {
+        return oldSignals;
+    }
+
+    /**
+     * Signals arrived after SignalsWatcher started which could not get matched against registered tasks yet.
+     * @return Signals arrived after SignalsWatcher started which could not get matched against registered tasks yet.
+     */
+    public ArrayList<Signal> getUnmatchedSignals() {
+        return unmatchedSignals;
+    }
 }

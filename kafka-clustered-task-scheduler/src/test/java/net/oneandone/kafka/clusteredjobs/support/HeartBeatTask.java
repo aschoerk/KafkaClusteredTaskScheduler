@@ -18,7 +18,7 @@ import net.oneandone.kafka.clusteredjobs.api.TaskDefaults;
  * @author aschoerk
  */
 public class HeartBeatTask extends TaskDefaults {
-    static Logger logger = LoggerFactory.getLogger(HeartBeatTask.class);
+    static Logger logger = LoggerFactory.getLogger("HeartBeatTestTask");
 
     static Map<String, AtomicBoolean> runningMap = Collections.synchronizedMap(new HashMap<>());
     private String name = "KafkaClusteredTaskManagerHeartBeat";
@@ -52,7 +52,7 @@ public class HeartBeatTask extends TaskDefaults {
 
     @Override
     public Duration getPeriod() {
-        if (period == null) {
+        if(period == null) {
             period = Duration.ofMillis(500);
         }
         return period;
@@ -60,15 +60,18 @@ public class HeartBeatTask extends TaskDefaults {
 
     @Override
     public String getName() {
+        if(name == null) {
+            name = "TestTask";
+        }
         return name;
     }
 
     @Override
-    public Runnable getJob(final Node node) {
+    public Runnable getCode(final Node node) {
         return () -> {
             final String uniqueNodeId = node.getUniqueNodeId();
             if(!getRunning().compareAndSet(false, true)) {
-                logger.error("heartbeat on {} started a second time", uniqueNodeId);
+                    logger.error("heartbeat on {} started a second time", uniqueNodeId);
             }
             logger.info("starting Heartbeat on {}", uniqueNodeId);
             try {
@@ -148,14 +151,14 @@ public class HeartBeatTask extends TaskDefaults {
         public HeartBeatTask build() {
             HeartBeatTask heartBeatTask = new HeartBeatTask();
             heartBeatTask.setHeartBeatDuration(heartBeatDuration);
-            heartBeatTask.maximumUncompletedExecutionsOnNode = this.maximumUncompletedExecutionsOnNode;
-            heartBeatTask.claimedSignalPeriod = this.claimedSignalPeriod;
-            heartBeatTask.resurrectionInterval = this.resurrectionInterval;
-            heartBeatTask.initialTimestamp = this.initialTimestamp;
+            heartBeatTask.setMaximumUncompletedExecutionsOnNode(this.maximumUncompletedExecutionsOnNode);
+            heartBeatTask.setClaimedSignalPeriod(this.claimedSignalPeriod);
+            heartBeatTask.setResurrectionInterval(this.resurrectionInterval);
+            heartBeatTask.setInitialTimestamp(this.initialTimestamp);
             heartBeatTask.period = this.period;
-            heartBeatTask.maxExecutionsOnNode = this.maxExecutionsOnNode;
+            heartBeatTask.setMaxExecutionsOnNode(this.maxExecutionsOnNode);
             heartBeatTask.name = this.name;
-            heartBeatTask.maxDuration = this.maxDuration;
+            heartBeatTask.setMaxDuration(this.maxDuration);
             return heartBeatTask;
         }
     }

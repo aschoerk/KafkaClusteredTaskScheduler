@@ -8,16 +8,13 @@ import java.time.Instant;
  */
 public abstract class TaskDefaults implements TaskDefinition {
 
-    protected Instant initialTimestamp = null;
-    protected Duration maxDuration = null;
-    protected int maximumUncompletedExecutionsOnNode = 2;
-    protected Duration claimedSignalPeriod = null;
-    protected Long maxExecutionsOnNode = null;
-    protected Duration resurrectionInterval = null;
+    private Instant initialTimestamp = null;
+    private Duration maxDuration = null;
+    private int maximumUncompletedExecutionsOnNode = 2;
+    private Duration claimedSignalPeriod = null;
+    private Long maxExecutionsOnNode = null;
+    private Duration resurrectionInterval = null;
 
-    protected TaskDefaults() {
-
-    }
 
     /**
      * initiate Taskstart-Modus as fixed Period from a Point in time
@@ -36,6 +33,11 @@ public abstract class TaskDefaults implements TaskDefinition {
         return maxDuration;
     }
 
+    /**
+     * after maxDuration a task may get restarted on a node. Theoretically tasks can run in parallel.
+     * MaximumUncompletedExecutionsOnNode restricts the number of parallel startings of a task.
+     * @return the number of parallel startings of a task.
+     */
     @Override
     public int getMaximumUncompletedExecutionsOnNode() {
         return maximumUncompletedExecutionsOnNode;
@@ -73,5 +75,52 @@ public abstract class TaskDefaults implements TaskDefinition {
         return resurrectionInterval;
     }
 
+    /**
+     * set initialTimestamp
+     * @param initialTimestamp the timestamp to use for calculation of the scheduling
+     */
+    public void setInitialTimestamp(final Instant initialTimestamp) {
+        this.initialTimestamp = initialTimestamp;
+    }
 
+    /**
+     * set the maximum duration of a task execution
+     * @param maxDuration the maximum duration of the execution of task. After that time, the system will try to end it.
+     */
+    public void setMaxDuration(final Duration maxDuration) {
+        this.maxDuration = maxDuration;
+    }
+
+    /**
+     * after maxDuration a task may get restarted on a node. Theoretically tasks can run in parallel.
+     * MaximumUncompletedExecutionsOnNode restricts the number of parallel startings of a task.
+     * @param maximumUncompletedExecutionsOnNode the maximum number of parallel startings of a task.
+     */
+    public void setMaximumUncompletedExecutionsOnNode(final int maximumUncompletedExecutionsOnNode) {
+        this.maximumUncompletedExecutionsOnNode = maximumUncompletedExecutionsOnNode;
+    }
+
+    /**
+     * set the timeinterval between the sending of claimed Signals while the task is in state CLAIMED_BY_NODE
+     * @param claimedSignalPeriod the timeinterval between the sending of claimed Signals while the task is in state CLAIMED_BY_NODE
+     */
+    public void setClaimedSignalPeriod(final Duration claimedSignalPeriod) {
+        this.claimedSignalPeriod = claimedSignalPeriod;
+    }
+
+    /**
+     * set the maximum number of execution on a specific node after which the task is to be unclaimed
+     * @param maxExecutionsOnNode the maximum number of execution on a specific node after which the task is to be unclaimed
+     */
+    public void setMaxExecutionsOnNode(final Long maxExecutionsOnNode) {
+        this.maxExecutionsOnNode = maxExecutionsOnNode;
+    }
+
+    /**
+     * set the time interval after the last claimedSignal to wait before restarting a task
+     * @param resurrectionInterval the time interval after the last claimedSignal to wait before restarting a task
+     */
+    public void setResurrectionInterval(final Duration resurrectionInterval) {
+        this.resurrectionInterval = resurrectionInterval;
+    }
 }

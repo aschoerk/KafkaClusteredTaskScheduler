@@ -47,6 +47,9 @@ public enum SignalEnum implements SignalInterface {
             signalHandler.unclaimedEvent(task, s);
         }
     },
+    /**
+     * node signal after CLAIMING or in response to other CLAIMING if node has already claimed
+     */
     CLAIMED {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
@@ -54,6 +57,9 @@ public enum SignalEnum implements SignalInterface {
         }
     },
 
+    /**
+     * used to provoke sending of NodeInformation
+     */
     DOHEARTBEAT {
         @Override
         public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
@@ -61,14 +67,9 @@ public enum SignalEnum implements SignalInterface {
         }
     },
 
-    NEW_I {
-        public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.new_i(task, s);
-        }
-    },
-
+    /**
+     * initiating a new task
+     */
     INITIATING_I {
         public boolean isInternal() { return true; }
         @Override
@@ -77,6 +78,9 @@ public enum SignalEnum implements SignalInterface {
         }
     },
 
+    /**
+     * start handling a claimed task
+     */
     HANDLING_I {
         public boolean isInternal() { return true; }
         @Override
@@ -85,6 +89,10 @@ public enum SignalEnum implements SignalInterface {
         }
     },
 
+    /**
+     * Send indication that task is claimed in regular intervals. Otherwise th need for resurrection could be
+     * indicated
+     */
     HEARTBEAT_I {
         public boolean isInternal() { return true; }
         @Override
@@ -93,6 +101,9 @@ public enum SignalEnum implements SignalInterface {
         }
     },
 
+    /**
+     * after some time in state INITIATING start CLAIMING
+     */
     CLAIMING_I {
         public boolean isInternal() { return true; }
         @Override
@@ -100,6 +111,9 @@ public enum SignalEnum implements SignalInterface {
             signalHandler.claiming_i(task, s);
         }
     },
+    /**
+     * release claim on task
+     */
     UNCLAIM_I {
         public boolean isInternal() { return true; }
         @Override
@@ -107,6 +121,9 @@ public enum SignalEnum implements SignalInterface {
             signalHandler.unclaim_i(task, s);
         }
     },
+    /**
+     * indicate ready handling of a task
+     */
     UNHANDLING_I {
         public boolean isInternal() { return true; }
         @Override
@@ -114,6 +131,9 @@ public enum SignalEnum implements SignalInterface {
             signalHandler.unhandling_i(task, s);
         }
     },
+    /**
+     * indicate starting to resurrect a task
+     */
     RESURRECTING {
         public boolean isInternal() { return true; }
         @Override

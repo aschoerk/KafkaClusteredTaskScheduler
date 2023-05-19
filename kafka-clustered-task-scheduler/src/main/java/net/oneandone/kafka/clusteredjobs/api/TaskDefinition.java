@@ -8,13 +8,13 @@ import java.time.Instant;
  */
 public interface TaskDefinition {
     /**
-     * if <> null the next starttime will always be calculated from this point in time using period
-     * @return if <> null the period will always be calculated from this point in time using period
+     * if != null the next starttime will always be calculated from this point in time using period
+     * @return if != null the period will always be calculated from this point in time using period
      */
     Instant getInitialTimestamp();
 
     /**
-     * The period of the repetition of concluded tasks. if InitialTimestamp <> null the period is fixed calculated from the InitialTimestamp.
+     * The period of the repetition of concluded tasks. if InitialTimestamp != null the period is fixed calculated from the InitialTimestamp.
      * otherwise the next execution is calculated as "end of last execution" plus period
      * if the previous task is yet running, the task will not get started.
      *
@@ -55,7 +55,16 @@ public interface TaskDefinition {
      */
     Long getMaxExecutionsOnNode();
 
+    /**
+     * the name of the task
+     * @return the name of the task
+     */
     String getName();
 
-    Runnable getJob(Node node);
+    /**
+     * return the code to be executed
+     * @param node the node-environment used to execute the code
+     * @return the code to be executed
+     */
+    Runnable getCode(Node node);
 }

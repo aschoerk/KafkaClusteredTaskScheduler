@@ -1,8 +1,8 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import static java.lang.management.ManagementFactory.*;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.DOHEARTBEAT;
 
-import java.lang.management.ManagementFactory;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Clock;
@@ -19,7 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.Container;
-import net.oneandone.kafka.clusteredjobs.api.NodeInformation;
+import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 
 /**
@@ -28,9 +28,13 @@ import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clusteredjobs.api.Node {
 
     static final long CONSUMER_POLL_TIME = 500L;
-    Logger logger = LoggerFactory.getLogger(NodeImpl.class);
-    public static final long MAX_AGE_OF_SIGNAL = 60 * 1000;
+
+    static final Duration WAIT_IN_NEW_STATE = Duration.ofMillis(1000L);
+    private static final Duration HEART_BEAT_PERIOD = Duration.ofMillis(1000);
+    private static Logger logger = LoggerFactory.getLogger(NodeImpl.class);
+
     private static AtomicInteger nodeCounter = new AtomicInteger(0);
+    private final NodeFactory nodeFactory;
 
     private ArrayList<Stoppable> stoppables = new ArrayList<>();
 
@@ -40,8 +44,6 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     final String syncTopic;
     Logger log = LoggerFactory.getLogger(NodeImpl.class);
-
-    final String SYNCING_GROUP = "SYNCING_GROUP";
 
     private final String hostname;
     private final String processName;
@@ -59,10 +61,18 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     private Set<Thread> handlerThreads = new HashSet<>();
     private Container container;
     private NodeHeartbeat nodeHeartbeat;
-    private NodeInformationHandler nodeInformationHandler;
+    private NodeTaskInformationHandler nodeTaskInformationHandler;
+    private String lastNodeTaskInformation;
+    private SignalsWatcher signalsWatcher;
 
-    public NodeImpl(Container container) {
+    /**
+     * create a Node instance capable of executing clustered periodic tasks
+     * @param container functionality provided by the container running the node
+     * @param nodeFactory the factory to be used to create subcomponents of node.
+     */
+    public NodeImpl(Container container, NodeFactory nodeFactory) {
         this.container = container;
+        this.nodeFactory = nodeFactory;
         this.syncTopic = container.getSyncTopicName();
         this.nodeId = nodeCounter.incrementAndGet();
         this.bootstrapServers = container.getBootstrapServers();
@@ -71,62 +81,63 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         } catch (UnknownHostException e) {
             throw new KctmException("NodeImpl cannot identify host", e);
         }
-        processName = ManagementFactory.getRuntimeMXBean().getName();
+        processName = hostname + "_" + getRuntimeMXBean().getPid();
+        nodeTaskInformationHandler = nodeFactory.createNodeTaskInformationHandler(this);
     }
 
-    Sender getSender() {
-        if(sender == null) {
-            synchronized (this) {
-                if(sender == null) {
-                    sender = new Sender(this);
-                }
-            }
-        }
-        return sender;
+    /**
+     * current time as calculated by clock of node
+     * @return current time as calculated by clock of node
+     */
+    public Instant getNow() {
+        return Instant.now(clock);
     }
 
-    SignalHandler getSignalHandler() {
-        if(signalHandler == null) {
-            synchronized (this) {
-                if(signalHandler == null) {
-                    signalHandler = new SignalHandler(this);
-                }
-            }
-        }
-        return signalHandler;
+    /**
+     * return the runtime-information of a registered Task
+     * @param taskName the name of the task being requested
+     * @return the runtime-information of a registered Task
+     */
+    public Task getTask(String taskName) {
+        return this.tasks.get(taskName);
     }
 
-    PendingHandler getPendingHandler() {
-        if(pendingHandler == null) {
-            synchronized (this) {
-                if(pendingHandler == null) {
-                    pendingHandler = new PendingHandler(this);
-                }
-            }
-        }
-        return pendingHandler;
+    /**
+     * return the container the Node is running
+     * @return the container the Node is running
+     */
+    public Container getContainer() {
+        return container;
     }
 
+    /**
+     * create the information about all tasks registered on the node
+     * @return the information about all tasks registered on the node
+     */
+    @Override
+    public NodeTaskInformation getNodeInformation() {
+        NodeTaskInformationImpl result = new NodeTaskInformationImpl(getUniqueNodeId());
+        tasks.entrySet().forEach(e -> {
+            Task task = e.getValue();
+            result.addTaskInformation(new NodeTaskInformationImpl.TaskInformationImpl(task));
+        });
+        return result;
+    }
+
+    /**
+     * start the node
+     */
     public void run() {
-        if (isRunning())
+        if(isRunning()) {
             return;
-        nodeInformationHandler = new NodeInformationHandler(this);
-        signalsReceivingThread = getContainer().createThread(() ->
-        {
-            Stoppable s = new SignalsWatcher(this);
-            stoppables.add(s);
-            s.run();
-            logger.info("stopped");
         }
-        );
-        signalsReceivingThread.start();
 
         pendingHandlerThread = getContainer().createThread(() ->
-        {
-            stoppables.add(getPendingHandler());
-            getPendingHandler().run();
-            logger.info("stopped");
-        }
+                {
+                    stoppables.add(getPendingHandler());
+                    getPendingHandler().run();
+                    logger.info("stopped");
+                }
         );
         pendingHandlerThread.start();
         setRunning();
@@ -134,64 +145,106 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
-                throw new KctmException("Interrupted while waiting for node startup",e);
+                throw new KctmException("Interrupted while waiting for node startup", e);
             }
         }
-        this.nodeHeartbeat = NodeHeartbeat.NodeHeartBeatBuilder.aNodeHeartBeat().build();
-        nodeHeartbeat.getJob(this).run();
-        getPendingHandler().schedulePending(new PendingEntry(getNow().plus(Duration.ofMillis(1000L)),"doHeartBeat" + getUniqueNodeId(),
-                        () -> NodeImpl.this.getSender().sendSynchronous(null, DOHEARTBEAT)));
+        this.nodeHeartbeat = nodeFactory.createNodeHeartbeat(HEART_BEAT_PERIOD);
+        getPendingHandler().schedulePending(
+                nodeFactory.createPendingEntry(
+                        getNow().plus(Duration.ofMillis(1000L)),
+                        "doHeartBeat" + getUniqueNodeId(),
+                        () -> NodeImpl.this.getSender().sendSignal(null, DOHEARTBEAT)));
+
+
+
+        signalsWatcher = nodeFactory.createSignalsWatcher(this);
+        signalsReceivingThread = getContainer().createThread(() ->
+                {
+                    stoppables.add(signalsWatcher);
+                    signalsWatcher.run();
+                    logger.info("stopped");
+                }
+        );
+        signalsReceivingThread.start();
+
+
+        synchronized (this) {
+            try {
+                if (signalsWatcher.getWatcherStarting() == null) {
+                    logger.info("Going to wait for SignalWatcher Topic consumer init.");
+                    this.wait();
+                    logger.info("End of   wait for SignalWatcher Topic consumer init.");
+                }
+            } catch (InterruptedException e) {
+                throw new KctmException("Interrupted Startup of SignalsWatchwr");
+            }
+        }
+        signalsWatcher.readOldSignals();
     }
 
-    public NodeHeartbeat getNodeHeartbeat() {
-        return nodeHeartbeat;
-    }
-
-    public String getUniqueNodeId() {
-        return processName + "_" + nodeId;
-    }
-
+    /**
+     * register a task to be scheduled on node
+     * @param taskDefinition the description how the task is to be executed
+     * @return the runtime-representation of the registered task.
+     */
     public Task register(TaskDefinition taskDefinition) {
-        if (!isRunning()) {
+        if(!isRunning()) {
             throw new KctmException("trying to register in not running node");
-        } else {
+        }
+        else {
             while (!threadsRunning()) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
-                    throw new KctmException("Interrupted while waiting for node startup",e);
+                    throw new KctmException("Interrupted while waiting for node startup", e);
                 }
             }
         }
-        Task task = new Task(taskDefinition);
-        task.setNode(this);
+        Task task = nodeFactory.createTask(this, taskDefinition);
         this.tasks.put(taskDefinition.getName(), task);
-        getSignalHandler().handleInternal(task, SignalEnum.INITIATING_I);
+        getSignalHandler().handleInternalSignal(task, SignalEnum.INITIATING_I);
+        getPendingHandler().scheduleWaitForNewSwitch(WAIT_IN_NEW_STATE);
         return task;
     }
 
-    void releaseAllTasks() {
-        tasks.values().forEach(t -> {
-            getSignalHandler().handleInternal(t, SignalEnum.UNCLAIM_I);
-        });
-    }
-
+    /**
+     * provide function to create threads
+     * @param runnable the runnable the thread should execute
+     * @return the thread for the runnablel
+     */
     public Thread newHandlerThread(final Runnable runnable) {
         Thread result = getContainer().createThread((runnable));
         handlerThreads.add(result);
         return result;
     }
+
+    /**
+     * dispose a thread previously created by newHandlerThread
+     * @param thread the thread to be disposed
+     */
     public void disposeHandlerThread(final Thread thread) {
         assert handlerThreads.remove(thread);
     }
 
+    /**
+     * return the id unique in the cluster of task executing nodes
+     * @return the id unique in the cluster of task executing/scheduling nodes
+     */
+    public String getUniqueNodeId() {
+        return processName + "_" + nodeId;
+    }
+
+
+    /**
+     * stop all activities
+     */
     @Override
     public void shutdown() {
         logger.info("Killing node: {}", getUniqueNodeId());
         stoppables.forEach(s -> s.shutdown());
         stoppables.clear();
         tasks.entrySet().forEach(e -> {
-            getSignalHandler().handleInternal(e.getValue(), SignalEnum.UNCLAIM_I);
+            getSignalHandler().handleInternalSignal(e.getValue(), SignalEnum.UNCLAIM_I);
         });
         try {
             Thread.sleep(NodeImpl.CONSUMER_POLL_TIME + 1000);
@@ -202,68 +255,88 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             pendingHandlerThread.interrupt();
         while (signalsReceivingThread.isAlive())
             signalsReceivingThread.interrupt();
-        for (Thread t: handlerThreads) {
+        for (Thread t : handlerThreads) {
             while (t.isAlive()) {
                 t.interrupt();
             }
         }
+        getSender().getSyncProducer().close();
         logger.info("Killed  node: {}", getUniqueNodeId());
     }
 
-    public Clock getClock() {
-        return clock;
+
+    /**
+     * return sender capabable of sending tasks to the sync-topic
+     * @return sender capabable of sending tasks to the sync-topic
+     */
+    Sender getSender() {
+        if(sender == null) {
+            synchronized (this) {
+                if(sender == null) {
+                    sender = nodeFactory.createSender(this);
+                }
+            }
+        }
+        return sender;
     }
 
-    public void setClock(final Clock clockP) {
+    SignalHandler getSignalHandler() {
+        if(signalHandler == null) {
+            synchronized (this) {
+                if(signalHandler == null) {
+                    signalHandler = nodeFactory.createSignalHandler(this);
+                }
+            }
+        }
+        return signalHandler;
+    }
+
+    PendingHandler getPendingHandler() {
+        if(pendingHandler == null) {
+            synchronized (this) {
+                if(pendingHandler == null) {
+                    pendingHandler = nodeFactory.createPendingHandler(this);
+                }
+            }
+        }
+        return pendingHandler;
+    }
+
+    NodeHeartbeat getNodeHeartbeat() {
+        return nodeHeartbeat;
+    }
+
+
+
+    /**
+     * change clock used for timestamps. be aware, that calculated durations are awaited by the wait-function of
+     * Thread and Object
+     * @param clockP the clock to be used
+     */
+    void setClock(final Clock clockP) {
         this.clock = clockP;
     }
 
-    public Instant getNow() {
-        return Instant.now(clock);
-    }
 
-    // be able to override for testing purposes
 
-    void setSender(final Sender senderP) {
-        this.sender = senderP;
-    }
-
-    void setSignalHandler(final SignalHandler signalHandlerP) {
-        this.signalHandler = signalHandlerP;
-    }
-
-    void setPendingHandler(final PendingHandler pendingHandlerP) {
-        this.pendingHandler = pendingHandlerP;
-    }
-
-    public Task getTask(String taskName) {
-        return this.tasks.get(taskName);
-    }
-
-    public Container getContainer() {
-        return container;
-    }
-
-    @Override
-    public NodeInformation getNodeInformation() {
-        NodeInformationImpl result = new NodeInformationImpl(getUniqueNodeId());
-        tasks.entrySet().forEach(e -> {
-            Task task = e.getValue();
-            result.addTaskInformation(new NodeInformationImpl.TaskInformationImpl(task));
-        });
-        return result;
-    }
-
-    public boolean threadsRunning() {
+    boolean threadsRunning() {
         return stoppables.stream().filter(s -> !s.isRunning()).findAny().isEmpty();
     }
 
-    void sendHeartbeat() {
-        getSender().getSyncProducer().send(new ProducerRecord(syncTopic, getUniqueNodeId(),
-                KbXStream.jsonXStream.toXML(getNodeInformation())));
+    void sendNodeTaskInformation(boolean onlyIfChanged) {
+        final String currentNodeTaskInformation = KbXStream.jsonXStream.toXML(getNodeInformation());
+        if (!onlyIfChanged || !currentNodeTaskInformation.equals(lastNodeTaskInformation)) {
+            lastNodeTaskInformation = currentNodeTaskInformation;
+            getSender().getSyncProducer().send(new ProducerRecord(syncTopic, getUniqueNodeId(),
+                    currentNodeTaskInformation));
+        }
     }
 
-    public NodeInformationHandler getNodeInformationHandler() {
-        return nodeInformationHandler;
+    NodeTaskInformationHandler getNodeTaskInformationHandler() {
+        return nodeTaskInformationHandler;
+    }
+
+    SignalsWatcher getSignalsWatcher() {
+        return signalsWatcher;
     }
 }
