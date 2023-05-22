@@ -20,6 +20,7 @@ public class Signal implements Comparable<Signal> {
      */
     SignalEnum signal;
 
+
     /**
      * the originator of the Signal
      */
@@ -29,6 +30,11 @@ public class Signal implements Comparable<Signal> {
      * Timestamp when this signal was sent to the topic
      */
     Instant timestamp;
+
+    /**
+     * The offset of a signal, this one refers to.
+     */
+    Long reference = null;
 
     /**
      * the offset in the one!!! partition of the topic where the signal was transported
@@ -41,10 +47,7 @@ public class Signal implements Comparable<Signal> {
     private transient boolean handled = false;
 
     Signal(final Task task, final SignalEnum signal) {
-        this.taskName = task.getDefinition().getName();
-        this.signal = signal;
-        this.nodeProcThreadId = task.getNode().getUniqueNodeId();
-        this.timestamp = task.getNode().getNow();
+        this(task.getNode().getUniqueNodeId(), task.getDefinition().getName(), signal, task.getNode().getNow(), null);
         this.currentOffset = -1L;
     }
 
@@ -61,13 +64,35 @@ public class Signal implements Comparable<Signal> {
      * @param taskName the task the signal is related to
      * @param signal the SignalEnum
      * @param timestamp the time the signal has been created.
+     * @param reference the offset of the signal (UNCLAIMED) we are referring the CLAIMING
      */
-    public Signal(final String sender, String taskName, final SignalEnum signal, Instant timestamp) {
+    public Signal(final String sender, String taskName, final SignalEnum signal, Instant timestamp, Long reference) {
         this.taskName = taskName;
         this.signal = signal;
         this.nodeProcThreadId = sender;
         this.timestamp = timestamp;
+        this.reference = reference;
         this.currentOffset = -1L;
+    }
+
+    public String getTaskName() {
+        return taskName;
+    }
+
+    public SignalEnum getSignal() {
+        return signal;
+    }
+
+    public String getNodeProcThreadId() {
+        return nodeProcThreadId;
+    }
+
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public boolean isHandled() {
+        return handled;
     }
 
     /**
@@ -86,6 +111,13 @@ public class Signal implements Comparable<Signal> {
         this.currentOffset = currentOffsetP;
     }
 
+    public Long getReference() {
+        return reference;
+    }
+
+    public void setReference(final Long reference) {
+        this.reference = reference;
+    }
 
     @Override
     public boolean equals(final Object o) {
@@ -113,6 +145,7 @@ public class Signal implements Comparable<Signal> {
                ", signal=" + signal +
                ", nodeProcThreadId='" + nodeProcThreadId + '\'' +
                ", timestamp=" + timestamp +
+               ", offset=" + getCurrentOffset().orElse(-1L) +
                '}';
     }
 

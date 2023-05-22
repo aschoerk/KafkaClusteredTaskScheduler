@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
+import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 /**
  * @author aschoerk
@@ -58,10 +58,10 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
     static class TaskInformationImpl implements TaskInformation {
 
         private String name;
-        private TaskStateEnum tastState;
+        private StateEnum tastState;
         private String nodeName;
 
-        public TaskInformationImpl(final String name, final TaskStateEnum tastState, final String nodeName) {
+        public TaskInformationImpl(final String name, final StateEnum tastState, final String nodeName) {
             this.name = name;
             this.tastState = tastState;
             this.nodeName = nodeName;
@@ -79,7 +79,7 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
         }
 
         @Override
-        public TaskStateEnum getState() {
+        public StateEnum getState() {
             return tastState;
         }
 

@@ -39,11 +39,15 @@ public class Sender {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         return config;
     }
+    public void sendSignal(final Task t, final SignalEnum signal) {
+        sendSignal(t, signal, null);
+    }
 
-    void sendSignal(final Task t, final SignalEnum signal) {
-        logger.info("Sending from N: {} for task {} int State: {} Signal: {}",
+    public void sendSignal(final Task t, final SignalEnum signal, Long reference) {
+        logger.info("Sending from N: {} for task {} int State: {} Signal: {} Reference: {}",
                                         node.getUniqueNodeId(),
-                t != null ? t.getDefinition().getName() : "NodeTask", t != null ? t.getLocalState() : "null", signal);
+                t != null ? t.getDefinition().getName() : "NodeTask", t != null ? t.getLocalState() : "null", signal,
+                reference);
         Signal toSend = new Signal();
         if (t != null) {
             toSend.taskName = t.getDefinition().getName();
@@ -53,6 +57,7 @@ public class Sender {
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
         toSend.timestamp = node.getNow();
+        toSend.reference = reference;
         getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
         syncProducer.flush();
     }

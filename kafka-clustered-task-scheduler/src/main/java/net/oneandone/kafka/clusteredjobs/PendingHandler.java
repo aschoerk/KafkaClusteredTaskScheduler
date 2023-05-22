@@ -4,8 +4,8 @@ import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.CLAIMING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.RESURRECTING;
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.INITIATING;
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.NEW;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.INITIATING;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.NEW;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -49,7 +49,7 @@ public class PendingHandler extends StoppableBase {
      */
     public void schedulePending(final PendingEntry e) {
         logger.info("Node: {} Scheduling PendingEntry: {}", node.getUniqueNodeId(), e);
-        removePending(e.getIdentifier(), true);
+        removePending(e.getIdentifier(), false);
         pendingByIdentifier.put(e.getIdentifier(), e);
         sortedPending.add(e);
         synchronized (this) {
@@ -234,7 +234,7 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
-    void scheduleInterupter(final Task task, final String threadName, final Thread thread) {
+    public void scheduleInterupter(final Task task, final String threadName, final Thread thread) {
         Instant now = node.getNow();
         Instant nextCall = now.plus(task.getDefinition().getMaxDuration());
         final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_" + threadName, new Runnable() {

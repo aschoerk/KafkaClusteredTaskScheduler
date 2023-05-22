@@ -14,5 +14,8 @@
         <Logger name="net.oneandone.kafka.clusteredjobs" level="TRACE" additivity="false">
             <AppenderRef ref="InterceptingAppender"/>
         </Logger>
+        <Logger name="TestBase" level="TRACE" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
     </Loggers>
 </Configuration>

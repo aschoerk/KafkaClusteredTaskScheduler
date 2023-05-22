@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import net.oneandone.kafka.clusteredjobs.api.Container;
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
+import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 /**
  * @author aschoerk
@@ -201,6 +202,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             }
         }
         Task task = nodeFactory.createTask(this, taskDefinition);
+        task.setLocalState(StateEnum.NULL);
         this.tasks.put(taskDefinition.getName(), task);
         getSignalHandler().handleInternalSignal(task, SignalEnum.INITIATING_I);
         getPendingHandler().scheduleWaitForNewSwitch(WAIT_IN_NEW_STATE);
@@ -244,7 +246,10 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         stoppables.forEach(s -> s.shutdown());
         stoppables.clear();
         tasks.entrySet().forEach(e -> {
-            getSignalHandler().handleInternalSignal(e.getValue(), SignalEnum.UNCLAIM_I);
+            Task t = e.getValue();
+            if (t.getLocalState() == StateEnum.HANDLING_BY_NODE || t.getLocalState() == StateEnum.CLAIMED_BY_NODE) {
+                getSignalHandler().handleInternalSignal(e.getValue(), SignalEnum.UNCLAIM_I);
+            }
         });
         try {
             Thread.sleep(NodeImpl.CONSUMER_POLL_TIME + 1000);
@@ -269,7 +274,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
      * return sender capabable of sending tasks to the sync-topic
      * @return sender capabable of sending tasks to the sync-topic
      */
-    Sender getSender() {
+    public Sender getSender() {
         if(sender == null) {
             synchronized (this) {
                 if(sender == null) {
@@ -280,7 +285,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         return sender;
     }
 
-    SignalHandler getSignalHandler() {
+    public SignalHandler getSignalHandler() {
         if(signalHandler == null) {
             synchronized (this) {
                 if(signalHandler == null) {
@@ -291,7 +296,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         return signalHandler;
     }
 
-    PendingHandler getPendingHandler() {
+    public PendingHandler getPendingHandler() {
         if(pendingHandler == null) {
             synchronized (this) {
                 if(pendingHandler == null) {
@@ -332,7 +337,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         }
     }
 
-    NodeTaskInformationHandler getNodeTaskInformationHandler() {
+    public NodeTaskInformationHandler getNodeTaskInformationHandler() {
         return nodeTaskInformationHandler;
     }
 

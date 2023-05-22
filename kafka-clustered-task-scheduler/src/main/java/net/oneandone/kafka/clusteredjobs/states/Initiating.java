@@ -1,0 +1,58 @@
+package net.oneandone.kafka.clusteredjobs.states;
+
+import net.oneandone.kafka.clusteredjobs.NodeImpl;
+import net.oneandone.kafka.clusteredjobs.Signal;
+import net.oneandone.kafka.clusteredjobs.SignalEnum;
+import net.oneandone.kafka.clusteredjobs.Task;
+
+/**
+ * @author aschoerk
+ */
+public class Initiating extends StateHandlerBase {
+    public Initiating(NodeImpl node) {
+        super(node, StateEnum.INITIATING);
+    }
+
+
+    @Override
+    protected void handleSignal(final Task task, final Signal s) {
+        switch (s.getSignal()) {
+            case CLAIMING:
+                claiming(task, s);
+                break;
+            case HEARTBEAT:
+                task.setLocalState(StateEnum.CLAIMED_BY_OTHER,s);
+                break;
+            case CLAIMED:
+                task.setLocalState(StateEnum.ERROR);
+                break;
+            case UNCLAIMED:
+                break;
+            default:
+                super.handleSignal(task, s);
+        }
+    }
+
+    @Override
+    protected void handleOwnSignal(final Task task, final Signal s) {
+        switch (s.getSignal()) {
+            case UNCLAIMED:
+                break;
+            default:
+                super.handleOwnSignal(task, s);
+        }
+    }
+
+    @Override
+    protected void handleInternal(final Task task, final Signal s) {
+        switch (s.getSignal()) {
+            case CLAIMING_I:
+                task.setLocalState(StateEnum.CLAIMING);
+                getNode().getSender().sendSignal(task, SignalEnum.CLAIMING, task.getUnclaimedSignalOffset());
+                break;
+            default:
+                super.handleInternal(task, s);
+        }
+    }
+
+}

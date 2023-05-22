@@ -14,6 +14,7 @@ skinparam state {
 
 state "NEW" as n <<Main>>
 state "INITIATING" as i <<Main>>
+state "UNCLAIMING" as uc <<Main>>
 state "CLAIMING" as cg <<Transient>>
 state "CLAIMED_BY_NODE(ME)" as cn <<Suspended>>
 state "CLAIMED_BY_OTHER" as co <<Suspended>>
@@ -28,8 +29,10 @@ n -> e: xxxxxx<b>_I</b>
 n -down-> i: <b>INITIATING_I</b> || after some time
 n -> co: <b>CLAIMED_O</b>, <b>CLAIMING_O</b>
 n -> ho: <b>HANDLING_O</b>
-n -> i: <b>UNCLAIM_O</b>
-i -> co: <b>CLAIMING_O</b>,\n<b>CLAIMED_O</b>\narrived
+n -> i: <b>UNCLAIM_O(offset)</b>
+uc -> uc: <b>not UNCLAIM_I</b>
+uc -> i: <b>UNCLAIM_I</b> mind offset
+i -> co: <b>CLAIMING_O(offset)</b>,\n<b>CLAIMED_O</b>\narrived
 i -> ho: <b>HANDLING_O</b>\narrived
 i -down--> cg: waited for random time \ndepending on task period\nto minimize collisions
 note right of cg: node did send\nsignal <b>CLAIMING</b>\n to claim the task to\n the topic
@@ -40,6 +43,7 @@ note left of co: node did not claim,\neither it was not the first <b>CLAIMING</b
 cn -up-> hn: according to schedule,\nnode started the task\nsignal <b>HANDLING_I</b> sent
 cn -down-> e: <b>CLAIMED_O,</b> \n<b>HANDLING_O</b> arrived
 cn -left-> cn:  <b>INITIATING_O</b> arrived,\nsend <b>CLAIMED</b>
+cn -up-> uc: <b>UNCLAIM_I</b> sent
 cn -down-> e:  <b>INITIATING_I</b> arrived
 hn -down-> cn: task was completed\nsignal <b>CLAIMED_I</b> sent
 hn -up-> i: max number of \nexecutions on node,\nsignal <b>UNCLAIM_I</b> sent

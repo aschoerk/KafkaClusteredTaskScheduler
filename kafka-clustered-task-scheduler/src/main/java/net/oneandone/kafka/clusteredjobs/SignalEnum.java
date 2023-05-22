@@ -12,70 +12,35 @@ public enum SignalEnum implements SignalInterface {
     /**
      * This node is prepared to CLAIM the task
      */
-    CLAIMING{
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claimingEvent(task, s);
-        }
-    },   //
+    CLAIMING,   //
     /**
      * This node CLAIMED the task
      */
-    HEARTBEAT {
-        // inform other nodes that task is claimed by this node in a periodical manner
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.heartbeatEvent(task, s);
-        }
-    },
+    HEARTBEAT ,
     /**
      * This node is currently handling the task
      */
-    HANDLING {
-        // the node having claimed a task did start the handling. During that period no heartbeats-signals are sent.
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.handlingEvent(task, s);
-        }
-    },
+    HANDLING,
     /**
      * This node is unclaiming the task
      */
-    UNCLAIMED {
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.unclaimedEvent(task, s);
-        }
-    },
+    UNCLAIMED,
     /**
      * node signal after CLAIMING or in response to other CLAIMING if node has already claimed
      */
-    CLAIMED {
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claimedEvent(task, s);
-        }
-    },
+    CLAIMED,
 
     /**
      * used to provoke sending of NodeInformation
      */
-    DOHEARTBEAT {
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.doheartbeat(task, s);
-        }
-    },
+    DOHEARTBEAT,
 
     /**
      * initiating a new task
      */
     INITIATING_I {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.initiating_i(task, s);
-        }
+
     },
 
     /**
@@ -83,10 +48,7 @@ public enum SignalEnum implements SignalInterface {
      */
     HANDLING_I {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.handling_i(task, s);
-        }
+
     },
 
     /**
@@ -95,10 +57,7 @@ public enum SignalEnum implements SignalInterface {
      */
     HEARTBEAT_I {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.heartbeat_i(task, s);
-        }
+
     },
 
     /**
@@ -106,39 +65,32 @@ public enum SignalEnum implements SignalInterface {
      */
     CLAIMING_I {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.claiming_i(task, s);
-        }
+
     },
     /**
      * release claim on task
      */
     UNCLAIM_I {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.unclaim_i(task, s);
-        }
+
     },
     /**
      * indicate ready handling of a task
      */
     UNHANDLING_I {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.unhandling_i(task, s);
-        }
+
     },
     /**
      * indicate starting to resurrect a task
      */
     RESURRECTING {
         public boolean isInternal() { return true; }
-        @Override
-        public void handle(SignalHandler signalHandler, final Task task, final Signal s) {
-            signalHandler.resurrecting(task, s);
-        }
+
+    };
+
+    @Override
+    public String toString() {
+        return this.name();
     }
 }

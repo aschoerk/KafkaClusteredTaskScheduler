@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+
 /**
  * @author aschoerk
  */
@@ -40,7 +42,7 @@ public interface NodeTaskInformation {
          * the state of the task on the node which sent the information
          * @return the state of the task on the node which sent the information
          */
-        TaskStateEnum getState();
+        StateEnum getState();
 
         /**
          * in case of CLAIMED_BY_OTHER_NODE, HANDLED_BY_OTHER_NODE, the node where the node presumes the task to be handled.

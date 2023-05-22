@@ -66,7 +66,7 @@ public class Test1 extends TestBase {
     @Test
     void testUsingOneNode() throws InterruptedException {
         NodeImpl node1 = newNode();
-        final HeartBeatTask taskDefinition = aHeartBeatTask().withName("TestTask").withPeriod(Duration.ofMillis(500)).build();
+        final HeartBeatTask taskDefinition = aHeartBeatTask().withName("TestTask").withMaxExecutionsOnNode(5L).withPeriod(Duration.ofMillis(500)).build();
         node1.register(taskDefinition);
         int count = 0;
         while (count++ < 20) {
@@ -79,7 +79,12 @@ public class Test1 extends TestBase {
 
     @Test
     void testUsingTwoNodes() throws InterruptedException {
-        final HeartBeatTask testTask = aHeartBeatTask().withName("TestTask").withHeartBeatDuration(Duration.ofMillis(5)).withPeriod(Duration.ofMillis(10)).withMaxExecutionsOnNode(5L).build();
+        final HeartBeatTask testTask = aHeartBeatTask()
+                .withName("TestTask")
+                .withHeartBeatDuration(Duration.ofMillis(5))
+                .withPeriod(Duration.ofMillis(10))
+                .withMaxExecutionsOnNode(5L)
+                .build();
         NodeImpl node1 = newNode();
         node1.register(testTask);
         NodeImpl node2 = newNode();
@@ -88,6 +93,7 @@ public class Test1 extends TestBase {
         while (count++ < 20) {
             Thread.sleep(10000);
             logger.info("TestLoop {}", Instant.now());
+            outputSignals();
         }
         node1.shutdown();
         node2.shutdown();
@@ -114,6 +120,7 @@ public class Test1 extends TestBase {
             node2 = newNode();
             node2.register(heartBeat1);
             node2.register(heartBeat2);
+            outputSignals();
         }
         node1.shutdown();
         node2.shutdown();

@@ -1,6 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.HANDLING_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_OTHER;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -10,17 +10,20 @@ import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.Node;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
-import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
+import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 /**
  * @author aschoerk
  */
-class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
+public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     private final TaskDefinition taskDefinition;
     Logger logger = LoggerFactory.getLogger(Task.class);
 
-    TaskStateEnum localState;
+    StateEnum localState;
+
+    private Long unclaimedSignalOffsetl = null;
+
 
     Instant lastClaimedInfo;
 
@@ -31,32 +34,33 @@ class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     private net.oneandone.kafka.clusteredjobs.api.Node node;
 
     int executionsOnNode = 0;
-    private Signal lastSignal = null;
 
     Task(Node node, TaskDefinition taskDefinition) {
         this.node = node;
         this.taskDefinition = taskDefinition;
     }
 
-    public TaskStateEnum getLocalState() {
+    public StateEnum getLocalState() {
         return localState;
     }
 
-    public void setLocalState(final TaskStateEnum stateToSet, Signal s) {
+    public void setLocalState(final StateEnum stateToSet, Signal s) {
         setLocalState(stateToSet, s.nodeProcThreadId);
     }
-    public void setLocalState(final TaskStateEnum stateToSet, final String nodeName) {
-        if (stateToSet == HANDLING_BY_OTHER || stateToSet == TaskStateEnum.CLAIMED_BY_OTHER) {
+    public void setLocalState(final StateEnum stateToSet, final String nodeName) {
+        logger.info("N: {} T: {} Setting State: {} from state: {} because of node: {}", node.getUniqueNodeId(), taskDefinition.getName(),  stateToSet, localState, this.getCurrentExecutor().orElse("null"));
+        if (stateToSet == HANDLING_BY_OTHER || stateToSet == StateEnum.CLAIMED_BY_OTHER) {
             currentExecutor = nodeName;
             executionsOnNode = 0;
             sawClaimedInfo();
             localState = stateToSet;
         } else {
-            throw new KctmException("Only deliver Signal if CLAIMED or HANDLED by Other");
+            throw new KctmException("Only deliver NodeName if CLAIMED or HANDLED by Other");
         }
     }
 
-    public void setLocalState(final TaskStateEnum stateToSet) {
+
+    public void setLocalState(final StateEnum stateToSet) {
         logger.info("Node: {} Task {} Setting state: {} from state: {}",node.getUniqueNodeId(), taskDefinition.getName(), stateToSet, getLocalState());
         switch (stateToSet) {
             case HANDLING_BY_OTHER:
@@ -68,7 +72,7 @@ class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
                 sawClaimedInfo();
                 break;
             case HANDLING_BY_NODE:
-                if(localState != TaskStateEnum.HANDLING_BY_NODE) {
+                if(localState != StateEnum.HANDLING_BY_NODE) {
                     executionsOnNode++;
                     lastStartup = getNow();
                 }
@@ -93,7 +97,7 @@ class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     }
 
     public Instant getHandlingStarted() {
-        if(localState.equals(TaskStateEnum.HANDLING_BY_NODE)) {
+        if(localState.equals(StateEnum.HANDLING_BY_NODE)) {
             return lastStartup;
         }
         else {
@@ -128,17 +132,16 @@ class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
         return Optional.ofNullable(currentExecutor);
     }
 
-    public void setExecutionsOnNode(final int i) {
+    public void clearExecutionsOnNode() {
         executionsOnNode = 0;
     }
 
-    public Signal getLastSignal() {
-        return lastSignal;
+    public Long getUnclaimedSignalOffset() {
+        return unclaimedSignalOffsetl;
     }
 
-    public void setLastSignal(Signal signal) {
-        this.lastSignal = signal;
+    public void setUnclaimedSignalOffset(final Long unclaimedSignalOffsetl) {
+        this.unclaimedSignalOffsetl = unclaimedSignalOffsetl;
     }
-
 
 }

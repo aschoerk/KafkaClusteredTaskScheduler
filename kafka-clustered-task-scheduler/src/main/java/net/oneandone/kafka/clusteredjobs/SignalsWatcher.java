@@ -19,7 +19,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
@@ -29,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
+import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 
 /**
@@ -76,13 +78,32 @@ public class SignalsWatcher extends StoppableBase {
 
     private ArrayList<Signal> unmatchedSignals = new ArrayList();
 
-
     void readOldSignals() {
-        Map<String, Object> consumerConfig = getSyncingConsumerConfig(node);
+        iterateOldRecords(node.syncTopic, node.bootstrapServers, node.getUniqueNodeId(), r -> {
+            Object event = KbXStream.jsonXStream.fromXML(r.value());
+            if(event instanceof Signal) {
+                Signal signal = (Signal) event;
+                signal.setCurrentOffset(r.offset());
+                oldSignals.add(signal);
+            }
+            else {
+                NodeTaskInformationImpl nodeInformation = (NodeTaskInformationImpl) event;
+                nodeInformation.setOffset(r.offset());
+                NodeTaskInformation existing = lastNodeInformation.get(nodeInformation.getName());
+                if(existing == null || existing.getOffset().get() < nodeInformation.getOffset().get()) {
+                    lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
+                }
+            }
+        });
+        identifyOldNodeInformation();
+    }
+
+    static void iterateOldRecords(String topic, String bootstrapServers, String groupId, Consumer<ConsumerRecord<String, String>> eventHandler) {
+        Map<String, Object> consumerConfig = getSyncingConsumerConfig(bootstrapServers, groupId);
         consumerConfig.put(MAX_POLL_RECORDS_CONFIG, 100);
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(consumerConfig)) {
-            ConsumerData consumerData = initConsumer(consumer);
-            long endOffset = watcherStarting.endOffset;
+            ConsumerData consumerData = initConsumer(topic, consumer);
+            long endOffset = consumerData.endOffset;
             AtomicBoolean done = new AtomicBoolean(false);
             while (!done.get() && endOffset >= consumerData.startOffset) {
                 long startoffset = endOffset - 100;
@@ -93,28 +114,16 @@ public class SignalsWatcher extends StoppableBase {
                 do {
                     consumer.seek(consumerData.partition, offset);
                     ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
-                    records.forEach(r -> {
-                        Object event = KbXStream.jsonXStream.fromXML(r.value());
-                        if(event instanceof Signal) {
-                            Signal signal = (Signal) event;
-                            signal.setCurrentOffset(r.offset());
-                            oldSignals.add(signal);
+                    for (ConsumerRecord<String, String> r: records) {
+                        if (r.offset() <= endOffset) {
+                            eventHandler.accept(r);
                         }
-                        else {
-                            NodeTaskInformationImpl nodeInformation = (NodeTaskInformationImpl) event;
-                            nodeInformation.setOffset(r.offset());
-                            NodeTaskInformation existing = lastNodeInformation.get(nodeInformation.getName());
-                            if(existing == null || existing.getOffset().get() < nodeInformation.getOffset().get()) {
-                                lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
-                            }
-                        }
-                    });
+                    }
                     offset += records.count();
                 } while (offset < endOffset);
                 endOffset = startoffset - 1;
             }
         }
-        identifyOldNodeInformation();
     }
 
     private void identifyOldNodeInformation() {
@@ -128,7 +137,7 @@ public class SignalsWatcher extends StoppableBase {
                 .reduce(new HashMap<String, NodeTaskInformation>(),
                         (result, e) -> {
                             e.getTaskInformation().stream().forEach(ti -> {
-                                if((ti.getState() == TaskStateEnum.CLAIMED_BY_NODE || ti.getState() == TaskStateEnum.HANDLING_BY_NODE)
+                                if((ti.getState() == StateEnum.CLAIMED_BY_NODE || ti.getState() == StateEnum.HANDLING_BY_NODE)
                                    && !result.containsKey(ti.getTaskName())) {
                                     result.put(ti.getTaskName(), e);
                                 }
@@ -153,10 +162,10 @@ public class SignalsWatcher extends StoppableBase {
 
         final OffsetContainer oC = new OffsetContainer();
 
-        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node))) {
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node.bootstrapServers, node.getUniqueNodeId()))) {
             setRunning();
             synchronized (node) {
-                watcherStarting = initConsumer(consumer);
+                watcherStarting = initConsumer(node.syncTopic, consumer);
                 logger.info("Going to notify about SignalWatcher Topic consumer init.");
                 node.notify();
                 logger.info("End   of notify about SignalWatcher Topic consumer init.");
@@ -201,8 +210,10 @@ public class SignalsWatcher extends StoppableBase {
                                 Task task = node.tasks.get(signal.taskName);
 
                                 if(task == null && signal.signal == SignalEnum.DOHEARTBEAT) {
-                                    logger.debug("Node: {} triggering NodeHeartBeat beause of DOHEARTBEAT", node.getUniqueNodeId());
-                                    node.getPendingHandler().scheduleNodeHeartBeat(node.getNodeHeartbeat().getCode(node), node.getNow());
+                                    if (!signal.equalNode(node)) {
+                                        logger.debug("Node: {} triggering NodeHeartBeat beause of DOHEARTBEAT", node.getUniqueNodeId());
+                                        node.getPendingHandler().scheduleNodeHeartBeat(node.getNodeHeartbeat().getCode(node), node.getNow());
+                                    }
                                 }
                                 else if(task != null) {
                                     logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(),
@@ -217,10 +228,9 @@ public class SignalsWatcher extends StoppableBase {
                                         }
                                     }
                                     lastSignalPerTaskAndNode.get(signal.taskName).put(signal.nodeProcThreadId, signal);
-                                    task.setLastSignal(signal);
                                     logger.info("SignalHandler handle signal {} from {} for Task {}/{}", signal.signal,
                                             signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
-                                    signal.signal.handle(node.getSignalHandler(), task, signal);
+                                    node.getSignalHandler().handleSignal(task, signal);
                                 }
                                 else {
                                     logger.info("Received Signal from unknown task {}", signal);
@@ -278,13 +288,13 @@ public class SignalsWatcher extends StoppableBase {
         TopicPartition partition;
     }
 
-    private ConsumerData initConsumer(final KafkaConsumer<String, String> consumer) {
-        List<PartitionInfo> partitionInfo = consumer.listTopics().get(node.syncTopic);
+    static ConsumerData initConsumer(String topic, final KafkaConsumer<String, String> consumer) {
+        List<PartitionInfo> partitionInfo = consumer.listTopics().get(topic);
         if(partitionInfo != null && partitionInfo.size() != 1) {
-            throw new KctmException("Either topic " + node.syncTopic + " not found or more than one partition defined");
+            throw new KctmException("Either topic " + topic + " not found or more than one partition defined");
         }
         PartitionInfo thePartitionInfo = partitionInfo.get(0);
-        TopicPartition partition = new TopicPartition(node.syncTopic, thePartitionInfo.partition());
+        TopicPartition partition = new TopicPartition(topic, thePartitionInfo.partition());
         consumer.assign(Collections.singletonList(partition));
         Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
         Map<TopicPartition, Long> endOffsets = consumer.endOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
@@ -296,14 +306,14 @@ public class SignalsWatcher extends StoppableBase {
         return new ConsumerData(beginningOffset, endOffset, partition);
     }
 
-    static Map<String, Object> getSyncingConsumerConfig(final NodeImpl nodeP) {
+    static Map<String, Object> getSyncingConsumerConfig(String bootstrapServers, String groupId) {
         Map<String, Object> syncingConsumerConfig = new HashMap<>();
-        syncingConsumerConfig.put(BOOTSTRAP_SERVERS_CONFIG, nodeP.bootstrapServers);
+        syncingConsumerConfig.put(BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         syncingConsumerConfig.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         syncingConsumerConfig.put(VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         syncingConsumerConfig.put(MAX_POLL_RECORDS_CONFIG, 100);
         syncingConsumerConfig.put(MAX_POLL_INTERVAL_MS_CONFIG, 5000);
-        syncingConsumerConfig.put(GROUP_ID_CONFIG, nodeP.getUniqueNodeId());
+        syncingConsumerConfig.put(GROUP_ID_CONFIG, groupId);
         syncingConsumerConfig.put(AUTO_OFFSET_RESET_CONFIG, "latest");
         return syncingConsumerConfig;
     }

@@ -50,8 +50,8 @@ public interface TaskDefinition {
     Duration getResurrectionInterval();
 
     /**
-     * if > 0: the maximum number of consecutive executions on one node. After this the node will unclaim the task.
-     * @return if > 0: the maximum number of consecutive executions on one node
+     * if &gt; 0: the maximum number of consecutive executions on one node. After this the node will unclaim the task.
+     * @return if &gt; 0: the maximum number of consecutive executions on one node
      */
     Long getMaxExecutionsOnNode();
 

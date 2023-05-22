@@ -1,10 +1,9 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.CLAIMED_BY_NODE;
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.ERROR;
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.HANDLING_BY_NODE;
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.INITIATING;
-import static net.oneandone.kafka.clusteredjobs.api.TaskStateEnum.NEW;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.CLAIMED_BY_NODE;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.ERROR;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_NODE;
+import static net.oneandone.kafka.clusteredjobs.states.StateEnum.NEW;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -21,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.api.TaskStateEnum;
+import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 /**
  * @author aschoerk
@@ -51,7 +50,7 @@ public class NodeTaskInformationHandler {
     }
 
     boolean unsureState(Task task) {
-        TaskStateEnum state = task.getLocalState();
+        StateEnum state = task.getLocalState();
         return state == NEW || state == ERROR;
     }
 
@@ -92,25 +91,25 @@ public class NodeTaskInformationHandler {
                             case HANDLING_BY_NODE:
                                 if(unsureState(task)) {
                                     logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeTaskInformation.getName());
-                                    task.setLocalState(TaskStateEnum.HANDLING_BY_OTHER, nodeTaskInformation.getName());
+                                    task.setLocalState(StateEnum.HANDLING_BY_OTHER, nodeTaskInformation.getName());
                                 }
                                 break;
                             case CLAIMED_BY_NODE:
                                 if(unsureState(task)) {
                                     logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeTaskInformation.getName());
-                                    task.setLocalState(TaskStateEnum.CLAIMED_BY_OTHER, nodeTaskInformation.getName());
+                                    task.setLocalState(StateEnum.CLAIMED_BY_OTHER, nodeTaskInformation.getName());
                                 }
                                 break;
                             case HANDLING_BY_OTHER:
                                 if(unsureState(task)) {
                                     logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeTaskInformation.getName());
-                                    task.setLocalState(TaskStateEnum.HANDLING_BY_OTHER, nodeTaskInformation.getName());
+                                    task.setLocalState(StateEnum.HANDLING_BY_OTHER, nodeTaskInformation.getName());
                                 }
                                 break;
                             case CLAIMED_BY_OTHER:
                                 if(unsureState(task)) {
                                     logger.info("Node: {} nodeheartbeat taskstate {}/{} from {} arrived",node.getUniqueNodeId(), ti.getTaskName(), ti.getState(), nodeTaskInformation.getName());
-                                    task.setLocalState(TaskStateEnum.CLAIMED_BY_OTHER, nodeTaskInformation.getName());
+                                    task.setLocalState(StateEnum.CLAIMED_BY_OTHER, nodeTaskInformation.getName());
                                 }
                                 break;
                         }
@@ -126,11 +125,11 @@ public class NodeTaskInformationHandler {
         switch (ti.getState()) {
             case CLAIMED_BY_NODE:
             case CLAIMED_BY_OTHER:
-                unknownTaskSignals.put(ti.getTaskName(), new Signal(sender, ti.getTaskName(), SignalEnum.CLAIMED, timestamp));
+                unknownTaskSignals.put(ti.getTaskName(), new Signal(sender, ti.getTaskName(), SignalEnum.CLAIMED, timestamp, null));
                 break;
             case HANDLING_BY_NODE:
             case HANDLING_BY_OTHER:
-                unknownTaskSignals.put(ti.getTaskName(), new Signal(sender, ti.getTaskName(), SignalEnum.HANDLING, timestamp));
+                unknownTaskSignals.put(ti.getTaskName(), new Signal(sender, ti.getTaskName(), SignalEnum.HANDLING, timestamp, null));
                 break;
             default:
                 Signal lastSignal = unknownTaskSignals.get(ti.getTaskName());
@@ -140,7 +139,7 @@ public class NodeTaskInformationHandler {
         }
     }
 
-    Optional<Pair<String, SignalEnum>> getUnknownTaskSignal(String taskname) {
+    public Optional<Pair<String, SignalEnum>> getUnknownTaskSignal(String taskname) {
         Optional<Pair<String, SignalEnum>> result = Optional.empty();
         List<Pair<NodeTaskInformation, NodeTaskInformation.TaskInformation>> nodeInformation =
                 signalsWatcher.getLastNodeInformation()
