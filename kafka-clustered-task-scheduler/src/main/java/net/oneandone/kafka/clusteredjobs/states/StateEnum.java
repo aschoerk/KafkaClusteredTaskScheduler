@@ -16,6 +16,10 @@ public enum StateEnum implements StateInterface {
             return new Null(node);
         }
     },
+
+    /**
+     * the node was just started. it is not yet clear in which state the task can really start.
+     */
     NEW {
         @Override
         public StateHandlerBase createState(final NodeImpl node) {

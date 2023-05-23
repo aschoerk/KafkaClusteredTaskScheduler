@@ -8,6 +8,10 @@ import net.oneandone.kafka.clusteredjobs.Task;
  * @author aschoerk
  */
 public class Error extends StateHandlerBase {
+    /**
+     * Create statemachine note for State ERROR
+     * @param node the node running the statemachine
+     */
     public Error(NodeImpl node) {
         super(node, StateEnum.ERROR);
     }

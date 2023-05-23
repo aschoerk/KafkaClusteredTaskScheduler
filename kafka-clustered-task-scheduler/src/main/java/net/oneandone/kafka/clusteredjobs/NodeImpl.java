@@ -285,6 +285,10 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         return sender;
     }
 
+    /**
+     * return the object dispatching the signals into the Statemachine according to the state of the task
+     * @return  the object dispatching the signals into the Statemachine according to the state of the task
+     */
     public SignalHandler getSignalHandler() {
         if(signalHandler == null) {
             synchronized (this) {
@@ -296,6 +300,10 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         return signalHandler;
     }
 
+    /**
+     * return the object scheduling tasks in the future
+     * @return the object scheduling tasks in the future
+     */
     public PendingHandler getPendingHandler() {
         if(pendingHandler == null) {
             synchronized (this) {
@@ -337,6 +345,11 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         }
     }
 
+
+    /**
+     * get the object capable of handling initiatizing information for newly to be started node
+     * @return the object capable of handling initiatizing information for newly to be started node
+     */
     public NodeTaskInformationHandler getNodeTaskInformationHandler() {
         return nodeTaskInformationHandler;
     }

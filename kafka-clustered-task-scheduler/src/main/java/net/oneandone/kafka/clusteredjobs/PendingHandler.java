@@ -234,6 +234,12 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
+    /**
+     * task has been started. Schedule a timer capable of sending an Interrupt to the thread after the maxTime
+     * @param task the task started
+     * @param threadName the name of the thread executing the task. To be checked because it will change when the thread is reused.
+     * @param thread the thread to be interrupted.
+     */
     public void scheduleInterupter(final Task task, final String threadName, final Thread thread) {
         Instant now = node.getNow();
         Instant nextCall = now.plus(task.getDefinition().getMaxDuration());

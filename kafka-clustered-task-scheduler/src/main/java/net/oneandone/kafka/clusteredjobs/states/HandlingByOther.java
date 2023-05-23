@@ -12,6 +12,10 @@ import net.oneandone.kafka.clusteredjobs.Task;
  * @author aschoerk
  */
 public class HandlingByOther extends StateHandlerBase {
+    /**
+     * Create statemachine note for State HANDLING_BY_OTHER
+     * @param node the node running the statemachine
+     */
     public HandlingByOther(NodeImpl node) {
         super(node, StateEnum.HANDLING_BY_OTHER);
     }

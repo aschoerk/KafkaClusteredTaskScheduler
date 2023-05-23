@@ -139,6 +139,11 @@ public class NodeTaskInformationHandler {
         }
     }
 
+    /**
+     * looking on the history of nodeinformation and old signals try to figure out, what the state of a new task in a new node is
+     * @param taskname the name of the task to be initiated
+     * @return the information about the last relevant signal received for the task.
+     */
     public Optional<Pair<String, SignalEnum>> getUnknownTaskSignal(String taskname) {
         Optional<Pair<String, SignalEnum>> result = Optional.empty();
         List<Pair<NodeTaskInformation, NodeTaskInformation.TaskInformation>> nodeInformation =

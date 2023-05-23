@@ -75,22 +75,43 @@ public class Signal implements Comparable<Signal> {
         this.currentOffset = -1L;
     }
 
+    /**
+     * the name of the task for which the signal got sent.
+     * @return the name of the task for which the signal got sent.
+     */
     public String getTaskName() {
         return taskName;
     }
 
+    /**
+     * the signal-enum
+     * @return the enum of the signal
+     */
     public SignalEnum getSignal() {
         return signal;
     }
 
+
+    /**
+     * the node which sent the signal
+     * @return the node which sent the signal
+     */
     public String getNodeProcThreadId() {
         return nodeProcThreadId;
     }
 
+    /**
+     * the time when the signal was created
+     * @return the time when the signal was created
+     */
     public Instant getTimestamp() {
         return timestamp;
     }
 
+    /**
+     * the signal was handled
+     * @return the signal was handled
+     */
     public boolean isHandled() {
         return handled;
     }
@@ -111,10 +132,18 @@ public class Signal implements Comparable<Signal> {
         this.currentOffset = currentOffsetP;
     }
 
+    /**
+     * the offset of a signal which should have been previously received which isreferred (CLAIMING)
+     * @return the offset of a signal which should have been previously received which isreferred (CLAIMING)
+     */
     public Long getReference() {
         return reference;
     }
 
+    /**
+     * set the offset of a signal which should have been previously received which isreferred (CLAIMING)
+     * @param reference the offset of a signal which should have been previously received which isreferred (CLAIMING)
+     */
     public void setReference(final Long reference) {
         this.reference = reference;
     }

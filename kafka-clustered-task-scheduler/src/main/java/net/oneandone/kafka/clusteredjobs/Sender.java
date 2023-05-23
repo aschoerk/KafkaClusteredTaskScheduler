@@ -39,10 +39,22 @@ public class Sender {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         return config;
     }
+
+    /**
+     * Send a signal for a task by SignalEnum
+     * @param t the task for which a signal is to be sent
+     * @param signal the SignalEnum to be sent.
+     */
     public void sendSignal(final Task t, final SignalEnum signal) {
         sendSignal(t, signal, null);
     }
 
+    /**
+     * Send a signal for a task by SignalEnum and additional data if the signal is refering to a previously received Signal
+     * @param t the task for which a signal is to be sent
+     * @param signal the SignalEnum to be sent.
+     * @param reference the offset of a signal on the stream which is referred.
+     */
     public void sendSignal(final Task t, final SignalEnum signal, Long reference) {
         logger.info("Sending from N: {} for task {} int State: {} Signal: {} Reference: {}",
                                         node.getUniqueNodeId(),

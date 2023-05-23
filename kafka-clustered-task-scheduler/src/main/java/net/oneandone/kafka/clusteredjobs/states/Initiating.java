@@ -9,6 +9,10 @@ import net.oneandone.kafka.clusteredjobs.Task;
  * @author aschoerk
  */
 public class Initiating extends StateHandlerBase {
+    /**
+     * Create statemachine note for State INITIATING
+     * @param node the node running the statemachine
+     */
     public Initiating(NodeImpl node) {
         super(node, StateEnum.INITIATING);
     }

@@ -17,6 +17,10 @@ import net.oneandone.kafka.clusteredjobs.Task;
  * @author aschoerk
  */
 public class New extends StateHandlerBase {
+    /**
+     * Create statemachine note for State NEW
+     * @param node the node running the statemachine
+     */
     public New(NodeImpl node) {
         super(node, StateEnum.NEW);
     }

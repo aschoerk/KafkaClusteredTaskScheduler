@@ -13,6 +13,10 @@ import net.oneandone.kafka.clusteredjobs.Task;
  * @author aschoerk
  */
 public class UnClaiming extends StateHandlerBase {
+    /**
+     * Create statemachine note for State UNCLAIMING
+     * @param node the node running the statemachine
+     */
     public UnClaiming(NodeImpl node) {
         super(node, StateEnum.UNCLAIMING);
     }

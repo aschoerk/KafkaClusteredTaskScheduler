@@ -35,18 +35,34 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     int executionsOnNode = 0;
 
+
     Task(Node node, TaskDefinition taskDefinition) {
         this.node = node;
         this.taskDefinition = taskDefinition;
     }
 
+    /**
+     * return the current state of the task on the node
+     * @return the current state of the task on the node
+     */
     public StateEnum getLocalState() {
         return localState;
     }
 
+    /**
+     * change the state of the task, only usable for states CLAIMED_BY_OTHER, HANDLING_BY_OTHER
+     * @param stateToSet state to be set now
+     * @param s the signal initiating the statechange
+     */
     public void setLocalState(final StateEnum stateToSet, Signal s) {
         setLocalState(stateToSet, s.nodeProcThreadId);
     }
+
+    /**
+     * change the state of the task, only usable for states CLAIMED_BY_OTHER, HANDLING_BY_OTHER
+     * @param stateToSet state to be set now
+     * @param nodeName the name of the node which sent the signal initiating the statechange
+     */
     public void setLocalState(final StateEnum stateToSet, final String nodeName) {
         logger.info("N: {} T: {} Setting State: {} from state: {} because of node: {}", node.getUniqueNodeId(), taskDefinition.getName(),  stateToSet, localState, this.getCurrentExecutor().orElse("null"));
         if (stateToSet == HANDLING_BY_OTHER || stateToSet == StateEnum.CLAIMED_BY_OTHER) {
@@ -60,6 +76,10 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     }
 
 
+    /**
+     * change the state of the task, not usable for states CLAIMED_BY_OTHER, HANDLING_BY_OTHER
+     * @param stateToSet state to be set now
+     */
     public void setLocalState(final StateEnum stateToSet) {
         logger.info("Node: {} Task {} Setting state: {} from state: {}",node.getUniqueNodeId(), taskDefinition.getName(), stateToSet, getLocalState());
         switch (stateToSet) {
@@ -88,31 +108,33 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
         return getNode().getNow();
     }
 
+    /**
+     * return the timestamp this task was the last time announced as claimed
+     * @return the timestamp this task was the last time announced as claimed
+     */
     public Instant getLastClaimedInfo() {
         return lastClaimedInfo;
     }
 
+    /**
+     * signal that the task was just been seen as claimed
+     */
     public void sawClaimedInfo() {
         this.lastClaimedInfo = getNow();
     }
 
-    public Instant getHandlingStarted() {
-        if(localState.equals(StateEnum.HANDLING_BY_NODE)) {
-            return lastStartup;
-        }
-        else {
-            throw new KctmException("Should not ask for handlingStarted if not HANDLING");
-        }
-    }
-
-    public Instant getLastStartup() {
-        return lastStartup;
-    }
-
+    /**
+     * return the number of executions on the node since the last clearing of this counter
+     * @return the number of executions on the node since the last clearing of this counter
+     */
     public long getExecutionsOnNode() {
         return executionsOnNode;
     }
 
+    /**
+     * return the node where the task is potentially running
+     * @return the node where the task is potentially running
+     */
     public net.oneandone.kafka.clusteredjobs.api.Node getNode() {
         return node;
     }
@@ -124,22 +146,41 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
                '}';
     }
 
+    /**
+     * return the fixed properties of the task
+     * @return the fixed properties of the task
+     */
     public TaskDefinition getDefinition() {
         return taskDefinition;
     }
 
+    /**
+     * return the supposed current executor according to the last CLAIMED_BY_OTHER, HANDLING_BY_OTHER, CLAIMED, HEARTBEAT events.
+     * @return the supposed current executor according to the last CLAIMED_BY_OTHER, HANDLING_BY_OTHER, CLAIMED, HEARTBEAT events.
+     */
     public Optional<String> getCurrentExecutor() {
         return Optional.ofNullable(currentExecutor);
     }
 
+    /**
+     * reset the counter, counting the executions of the task.
+     */
     public void clearExecutionsOnNode() {
         executionsOnNode = 0;
     }
 
+    /**
+     * return the offset of the unclaimed message (only one partition in sync-topicP
+     * @return the offset of the unclaimed message (only one partition in sync-topicP
+     */
     public Long getUnclaimedSignalOffset() {
         return unclaimedSignalOffsetl;
     }
 
+    /**
+     * to be able to match a CLAIMING to the UNCLAIMED message set the offset of the UNCLAIMED-Message
+     * @param unclaimedSignalOffsetl the offset of the unclaimed message (only one partition in sync-topicP
+     */
     public void setUnclaimedSignalOffset(final Long unclaimedSignalOffsetl) {
         this.unclaimedSignalOffsetl = unclaimedSignalOffsetl;
     }

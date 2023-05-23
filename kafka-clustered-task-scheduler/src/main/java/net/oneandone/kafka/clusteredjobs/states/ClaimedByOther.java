@@ -12,6 +12,11 @@ import net.oneandone.kafka.clusteredjobs.Task;
  * @author aschoerk
  */
 public class ClaimedByOther extends StateHandlerBase {
+
+    /**
+     * Create statemachine note for State CLAIMED_BY_OTHER
+     * @param node the node running the statemachine
+     */
     public ClaimedByOther(NodeImpl node) {
         super(node, StateEnum.CLAIMED_BY_OTHER);
     }

@@ -71,11 +71,21 @@ public class SignalHandler {
                 });
     }
 
+    /**
+     * handle signals arrived from sync-topic for a specific task
+     * @param task the task for which a signal is to be handled
+     * @param s the signal to be handled.
+     */
     public void handleSignal(final Task task, final Signal s) {
         logger.info("handle Task {} State {} signal {}", task.getDefinition().getName(), task.getLocalState(), s);
         stateHandlers[task.getLocalState().ordinal()].handle(task,  s);
     }
 
+    /**
+     * handle signals generated internally in the node
+     * @param task the task the signal is created for
+     * @param s the SignalEnum of the internal signal
+     */
     public void handleInternalSignal(final Task task, final SignalEnum s) {
         if(!s.isInternal()) {
             throw new KctmException("Expected internal Signal");
