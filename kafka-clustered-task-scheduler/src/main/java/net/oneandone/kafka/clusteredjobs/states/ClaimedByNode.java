@@ -56,25 +56,22 @@ public class ClaimedByNode extends StateHandlerBase {
 
     @Override
     protected void handleInternal(final Task task, final Signal s) {
-        if (s.getSignal().equals(UNCLAIM_I)) {
+        if (s.getSignal() == UNCLAIM_I) {
             startUnclaiming(task);
         } else if (s.getSignal() == HANDLING_I) {
+            getNode().getPendingHandler().removeClaimedHeartbeat(task); // claim could get lost when running job
             task.setLocalState(StateEnum.HANDLING_BY_NODE);
             getNode().getSender().sendSignal(task, HANDLING);
             final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter++;
-            MutableObject<Thread> p = new MutableObject();
-            p.setValue(getNode().newHandlerThread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        getNode().getPendingHandler().removeClaimedHeartbeat(task); // claim could get lost when running job
-                        task.getDefinition().getCode(getNode()).run();
-                    } finally {
-                        if(task.getLocalState() == StateEnum.HANDLING_BY_NODE) {
-                            getNode().getSignalHandler().handleInternalSignal(task, UNHANDLING_I);
-                        }
-                        getNode().disposeHandlerThread(p.getValue());
+            MutableObject<Thread> p = new MutableObject<>();
+            p.setValue(getNode().newHandlerThread(() -> {
+                try {
+                    task.getDefinition().getCode(getNode()).run();
+                } finally {
+                    if(task.getLocalState() == StateEnum.HANDLING_BY_NODE) {
+                        getNode().getSignalHandler().handleInternalSignal(task, UNHANDLING_I);
                     }
+                    getNode().disposeHandlerThread(p.getValue());
                 }
             }));
             p.getValue().setName(threadName);

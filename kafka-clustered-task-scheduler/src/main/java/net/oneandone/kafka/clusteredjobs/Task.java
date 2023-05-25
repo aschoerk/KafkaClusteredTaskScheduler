@@ -18,7 +18,7 @@ import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     private final TaskDefinition taskDefinition;
-    Logger logger = LoggerFactory.getLogger(Task.class);
+    static final Logger logger = LoggerFactory.getLogger(Task.class);
 
     StateEnum localState;
 
@@ -64,7 +64,10 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
      * @param nodeName the name of the node which sent the signal initiating the statechange
      */
     public void setLocalState(final StateEnum stateToSet, final String nodeName) {
-        logger.info("N: {} T: {} Setting State: {} from state: {} because of node: {}", node.getUniqueNodeId(), taskDefinition.getName(),  stateToSet, localState, this.getCurrentExecutor().orElse("null"));
+        if (logger.isInfoEnabled()) {
+            logger.info("N: {} T: {} Setting State: {} from state: {} because of node: {}", node.getUniqueNodeId(),
+                    taskDefinition.getName(), stateToSet, localState, this.getCurrentExecutor().orElse("null"));
+        }
         if (stateToSet == HANDLING_BY_OTHER || stateToSet == StateEnum.CLAIMED_BY_OTHER) {
             currentExecutor = nodeName;
             executionsOnNode = 0;

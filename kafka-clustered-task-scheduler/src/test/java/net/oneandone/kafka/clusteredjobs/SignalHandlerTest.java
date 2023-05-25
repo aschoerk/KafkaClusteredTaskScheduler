@@ -47,6 +47,7 @@ public class SignalHandlerTest {
                 public void run() {
                     setRunning();
                     synchronized (node) {
+
                         node.notify();
                     }
                 }
@@ -54,6 +55,11 @@ public class SignalHandlerTest {
                 @Override
                 void readOldSignals() {
                     ;
+                }
+
+                @Override
+                public ConsumerData getWatcherStarting() {
+                    return new ConsumerData(0, 0, null);
                 }
             };
         }

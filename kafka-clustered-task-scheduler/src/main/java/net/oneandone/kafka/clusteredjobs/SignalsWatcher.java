@@ -43,7 +43,7 @@ public class SignalsWatcher extends StoppableBase {
     private NodeImpl node;
     ConcurrentHashMap<String, ConcurrentHashMap<String, Signal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
 
-    transient ConsumerData watcherStarting;
+    transient volatile ConsumerData watcherStarting;
     // no need to be threadsafe yet
 
 
@@ -177,7 +177,7 @@ public class SignalsWatcher extends StoppableBase {
                     logger.debug("N: {} found {} records", node.getUniqueNodeId(), records.count());
                     records.forEach(r -> {
                         if(oC.offsetSet1.contains(r.offset()) || oC.offsetSet2.contains(r.offset())) {
-                            logger.error("Repeated offset: {}");
+                            logger.error("Repeated offset");
                         }
                         else {
                             if(oC.useSetOne) {

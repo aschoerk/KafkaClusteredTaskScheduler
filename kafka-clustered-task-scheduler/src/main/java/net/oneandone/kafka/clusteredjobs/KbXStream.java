@@ -15,4 +15,8 @@ public class KbXStream {
         jsonXStream.ignoreUnknownElements();
         jsonXStream.allowTypesByRegExp(new String[]{"(net|com)\\.oneandone\\..*"});
     }
+
+    KbXStream() {
+        
+    }
 }

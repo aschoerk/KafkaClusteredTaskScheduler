@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 /**
  * The one component used by the node components to send signals via sync-topic
  */
-public class Sender {
+public class Sender extends StoppableBase {
     static Logger logger = LoggerFactory.getLogger(Sender.class);
 
     private final NodeImpl node;
@@ -70,8 +70,10 @@ public class Sender {
         toSend.signal = signal;
         toSend.timestamp = node.getNow();
         toSend.reference = reference;
-        getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
-        syncProducer.flush();
+        if (!doShutdown()) {
+            getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
+            syncProducer.flush();
+        }
     }
 
     KafkaProducer getSyncProducer() {
@@ -79,5 +81,15 @@ public class Sender {
             this.syncProducer = new KafkaProducer(config);
         }
         return syncProducer;
+    }
+
+    @Override
+    public void run() {
+
+    }
+
+    @Override
+    public boolean isRunning() {
+        return true;
     }
 }

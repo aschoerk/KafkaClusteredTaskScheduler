@@ -33,6 +33,8 @@ public class HandlingByOther extends StateHandlerBase {
             case HANDLING:
                 task.setLocalState(HANDLING_BY_OTHER, s);
                 break;
+            default:
+                info(task, s, "ignored signal");
         }
     }
 

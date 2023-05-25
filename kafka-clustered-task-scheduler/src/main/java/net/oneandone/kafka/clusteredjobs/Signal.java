@@ -180,7 +180,7 @@ public class Signal implements Comparable<Signal> {
 
     @Override
     public int compareTo(final Signal o) {
-        if (this.currentOffset == null || o.currentOffset == null || this.currentOffset == o.currentOffset) {
+        if (this.currentOffset == null || o.currentOffset == null || Objects.equals(this.currentOffset, o.currentOffset)) {
             throw new KctmException("NodeTaskSignal not comparable if offset is not set");
         } else {
             return this.currentOffset.compareTo(o.currentOffset);

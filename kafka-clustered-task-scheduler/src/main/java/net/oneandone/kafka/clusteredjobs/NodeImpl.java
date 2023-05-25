@@ -55,9 +55,9 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     ConcurrentHashMap<String, Task> tasks = new ConcurrentHashMap<>();
 
     Integer taskPartition = null;
-    private transient Sender sender;
-    private transient SignalHandler signalHandler;
-    private transient PendingHandler pendingHandler;
+    private volatile Sender sender;
+    private volatile SignalHandler signalHandler;
+    private volatile PendingHandler pendingHandler;
 
     private Set<Thread> handlerThreads = new HashSet<>();
     private Container container;
@@ -133,9 +133,9 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             return;
         }
 
+        stoppables.add(getPendingHandler());
         pendingHandlerThread = getContainer().createThread(() ->
                 {
-                    stoppables.add(getPendingHandler());
                     getPendingHandler().run();
                     logger.info("stopped");
                 }
@@ -159,9 +159,9 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
 
         signalsWatcher = nodeFactory.createSignalsWatcher(this);
+        stoppables.add(signalsWatcher);
         signalsReceivingThread = getContainer().createThread(() ->
                 {
-                    stoppables.add(signalsWatcher);
                     signalsWatcher.run();
                     logger.info("stopped");
                 }
@@ -173,7 +173,9 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             try {
                 if (signalsWatcher.getWatcherStarting() == null) {
                     logger.info("Going to wait for SignalWatcher Topic consumer init.");
-                    this.wait();
+                    do {
+                        this.wait();
+                    } while(signalsWatcher.getWatcherStarting() == null);
                     logger.info("End of   wait for SignalWatcher Topic consumer init.");
                 }
             } catch (InterruptedException e) {
@@ -256,10 +258,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         } catch (InterruptedException e) {
             throw new KctmException("During shutdown interrupted", e);
         }
-        while (pendingHandlerThread.isAlive())
+        while (pendingHandlerThread.isAlive()) {
             pendingHandlerThread.interrupt();
-        while (signalsReceivingThread.isAlive())
+        }
+        while (signalsReceivingThread.isAlive()) {
             signalsReceivingThread.interrupt();
+        }
         for (Thread t : handlerThreads) {
             while (t.isAlive()) {
                 t.interrupt();
@@ -279,6 +283,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             synchronized (this) {
                 if(sender == null) {
                     sender = nodeFactory.createSender(this);
+                    stoppables.add(sender);
                 }
             }
         }

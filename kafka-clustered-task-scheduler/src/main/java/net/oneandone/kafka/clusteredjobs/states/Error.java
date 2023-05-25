@@ -21,6 +21,8 @@ public class Error extends StateHandlerBase {
             case UNCLAIMED:
                 super.unclaimed(task,s);
                 break;
+            default:
+                super.handleSignal(task, s);
         }
     }
 }
