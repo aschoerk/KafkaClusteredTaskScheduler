@@ -247,6 +247,7 @@ public class PendingHandler extends StoppableBase {
             @Override
             public void run() {
                 if (thread.isAlive() && thread.getName().equals(threadName) && !thread.isInterrupted()) {
+                    logger.info("N: {} T: {}/{} Interupting thread", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState());
                     thread.interrupt();
                 }
             }

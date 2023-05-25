@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,16 +19,25 @@ import net.oneandone.kafka.clusteredjobs.api.TaskDefaults;
 /**
  * @author aschoerk
  */
-public class HeartBeatTask extends TaskDefaults {
+public class TestTask extends TaskDefaults {
     static Logger logger = LoggerFactory.getLogger("HeartBeatTestTask");
+
+    static Map<String, AtomicLong> interruptedMap = Collections.synchronizedMap(new HashMap<>());
 
     static Map<String, AtomicBoolean> runningMap = Collections.synchronizedMap(new HashMap<>());
     private String name = "KafkaClusteredTaskManagerHeartBeat";
     private Duration period = Duration.ofMillis(200);
 
-    private Duration heartBeatDuration = period.dividedBy(5);
+    private Duration handlingDuration = period.dividedBy(5);
 
-    private HeartBeatTask() {
+    private TestTask() {
+    }
+
+    public AtomicLong getInterrupted() {
+        if (!interruptedMap.containsKey(getName())) {
+            interruptedMap.put(getName(), new AtomicLong(0L));
+        }
+        return interruptedMap.get(getName());
     }
 
     AtomicBoolean getRunning() {
@@ -36,17 +47,17 @@ public class HeartBeatTask extends TaskDefaults {
         return runningMap.get(getName());
     }
 
-    public Duration getHeartBeatDuration() {
-        if(heartBeatDuration == null) {
+    public Duration getHandlingDuration() {
+        if(handlingDuration == null) {
             return Duration.ofMillis(100);
         }
         else {
-            return heartBeatDuration;
+            return handlingDuration;
         }
     }
 
-    public void setHeartBeatDuration(final Duration heartBeatDuration) {
-        this.heartBeatDuration = heartBeatDuration;
+    public void setHandlingDuration(final Duration handlingDuration) {
+        this.handlingDuration = handlingDuration;
     }
 
 
@@ -71,24 +82,24 @@ public class HeartBeatTask extends TaskDefaults {
         return () -> {
             final String uniqueNodeId = node.getUniqueNodeId();
             if(!getRunning().compareAndSet(false, true)) {
-                    logger.error("heartbeat on {} started a second time", uniqueNodeId);
+                    logger.error("Testtask on {} started a second time", uniqueNodeId);
             }
-            logger.info("starting Heartbeat on {}", uniqueNodeId);
+            logger.info("starting Testtask on {}", uniqueNodeId);
             try {
-                Thread.sleep(this.getHeartBeatDuration().toMillis());
+                Thread.sleep(this.getHandlingDuration().toMillis());
             } catch (InterruptedException e) {
-                throw new KctmException("Heartbeat waiting interrupted", e);
+                getInterrupted().incrementAndGet();
             }
-            logger.info("ending   Heartbeat on {}", uniqueNodeId);
+            logger.info("ending   Testtask on {}", uniqueNodeId);
             if(!getRunning().compareAndSet(true, false)) {
-                logger.error("heartbeat on {} ended  a second time", uniqueNodeId);
+                logger.error("Testtask on {} ended  a second time", uniqueNodeId);
             }
 
         };
     }
 
 
-    public static final class HeartBeatTaskBuilder {
+    public static final class TestTaskBuilder {
         private Instant initialTimestamp;
         private Duration maxDuration;
         private int maximumUncompletedExecutionsOnNode;
@@ -97,69 +108,69 @@ public class HeartBeatTask extends TaskDefaults {
         private Duration resurrectionInterval;
         private String name;
         private Duration period;
-        private Duration heartBeatDuration;
+        private Duration handlingDuration;
 
-        private HeartBeatTaskBuilder() {}
+        private TestTaskBuilder() {}
 
-        public static HeartBeatTaskBuilder aHeartBeatTask() {return new HeartBeatTaskBuilder();}
+        public static TestTaskBuilder aTestTask() {return new TestTaskBuilder();}
 
-        public HeartBeatTaskBuilder withInitialTimestamp(Instant initialTimestamp) {
+        public TestTaskBuilder withInitialTimestamp(Instant initialTimestamp) {
             this.initialTimestamp = initialTimestamp;
             return this;
         }
 
-        public HeartBeatTaskBuilder withMaxDuration(Duration maxDuration) {
+        public TestTaskBuilder withMaxDuration(Duration maxDuration) {
             this.maxDuration = maxDuration;
             return this;
         }
 
-        public HeartBeatTaskBuilder withMaximumUncompletedExecutionsOnNode(int maximumUncompletedExecutionsOnNode) {
+        public TestTaskBuilder withMaximumUncompletedExecutionsOnNode(int maximumUncompletedExecutionsOnNode) {
             this.maximumUncompletedExecutionsOnNode = maximumUncompletedExecutionsOnNode;
             return this;
         }
 
-        public HeartBeatTaskBuilder withClaimedSignalPeriod(Duration claimedSignalPeriod) {
+        public TestTaskBuilder withClaimedSignalPeriod(Duration claimedSignalPeriod) {
             this.claimedSignalPeriod = claimedSignalPeriod;
             return this;
         }
 
-        public HeartBeatTaskBuilder withMaxExecutionsOnNode(Long maxExecutionsOnNode) {
+        public TestTaskBuilder withMaxExecutionsOnNode(Long maxExecutionsOnNode) {
             this.maxExecutionsOnNode = maxExecutionsOnNode;
             return this;
         }
 
-        public HeartBeatTaskBuilder withResurrectionInterval(Duration resurrectionInterval) {
+        public TestTaskBuilder withResurrectionInterval(Duration resurrectionInterval) {
             this.resurrectionInterval = resurrectionInterval;
             return this;
         }
 
-        public HeartBeatTaskBuilder withName(String name) {
+        public TestTaskBuilder withName(String name) {
             this.name = name;
             return this;
         }
 
-        public HeartBeatTaskBuilder withPeriod(Duration period) {
+        public TestTaskBuilder withPeriod(Duration period) {
             this.period = period;
             return this;
         }
 
-        public HeartBeatTaskBuilder withHeartBeatDuration(Duration heartBeatDuration) {
-            this.heartBeatDuration = heartBeatDuration;
+        public TestTaskBuilder withHandlingDuration(Duration handlingDuration) {
+            this.handlingDuration = handlingDuration;
             return this;
         }
 
-        public HeartBeatTask build() {
-            HeartBeatTask heartBeatTask = new HeartBeatTask();
-            heartBeatTask.setHeartBeatDuration(heartBeatDuration);
-            heartBeatTask.setMaximumUncompletedExecutionsOnNode(this.maximumUncompletedExecutionsOnNode);
-            heartBeatTask.setClaimedSignalPeriod(this.claimedSignalPeriod);
-            heartBeatTask.setResurrectionInterval(this.resurrectionInterval);
-            heartBeatTask.setInitialTimestamp(this.initialTimestamp);
-            heartBeatTask.period = this.period;
-            heartBeatTask.setMaxExecutionsOnNode(this.maxExecutionsOnNode);
-            heartBeatTask.name = this.name;
-            heartBeatTask.setMaxDuration(this.maxDuration);
-            return heartBeatTask;
+        public TestTask build() {
+            TestTask testTask = new TestTask();
+            testTask.setHandlingDuration(handlingDuration);
+            testTask.setMaximumUncompletedExecutionsOnNode(this.maximumUncompletedExecutionsOnNode);
+            testTask.setClaimedSignalPeriod(this.claimedSignalPeriod);
+            testTask.setResurrectionInterval(this.resurrectionInterval);
+            testTask.setInitialTimestamp(this.initialTimestamp);
+            testTask.period = this.period;
+            testTask.setMaxExecutionsOnNode(this.maxExecutionsOnNode);
+            testTask.name = this.name;
+            testTask.setMaxDuration(this.maxDuration);
+            return testTask;
         }
     }
 }

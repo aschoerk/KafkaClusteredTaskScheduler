@@ -2,6 +2,7 @@ package net.oneandone.kafka.clusteredjobs.states;
 
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING_I;
+import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNCLAIM_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNHANDLING_I;
 
@@ -56,29 +57,35 @@ public class ClaimedByNode extends StateHandlerBase {
 
     @Override
     protected void handleInternal(final Task task, final Signal s) {
-        if (s.getSignal() == UNCLAIM_I) {
-            startUnclaiming(task);
-        } else if (s.getSignal() == HANDLING_I) {
-            getNode().getPendingHandler().removeClaimedHeartbeat(task); // claim could get lost when running job
-            task.setLocalState(StateEnum.HANDLING_BY_NODE);
-            getNode().getSender().sendSignal(task, HANDLING);
-            final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter++;
-            MutableObject<Thread> p = new MutableObject<>();
-            p.setValue(getNode().newHandlerThread(() -> {
-                try {
-                    task.getDefinition().getCode(getNode()).run();
-                } finally {
-                    if(task.getLocalState() == StateEnum.HANDLING_BY_NODE) {
-                        getNode().getSignalHandler().handleInternalSignal(task, UNHANDLING_I);
+        switch(s.getSignal()) {
+            case UNCLAIM_I:
+                startUnclaiming(task);
+                break;
+            case HANDLING_I:
+                getNode().getPendingHandler().removeClaimedHeartbeat(task); // claim could get lost when running job
+                task.setLocalState(StateEnum.HANDLING_BY_NODE);
+                getNode().getSender().sendSignal(task, HANDLING);
+                final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter++;
+                MutableObject<Thread> p = new MutableObject<>();
+                p.setValue(getNode().newHandlerThread(() -> {
+                    try {
+                        task.getDefinition().getCode(getNode()).run();
+                    } finally {
+                        if(task.getLocalState() == StateEnum.HANDLING_BY_NODE) {
+                            getNode().getSignalHandler().handleInternalSignal(task, UNHANDLING_I);
+                        }
+                        getNode().disposeHandlerThread(p.getValue());
                     }
-                    getNode().disposeHandlerThread(p.getValue());
-                }
-            }));
-            p.getValue().setName(threadName);
-            p.getValue().start();
-            getNode().getPendingHandler().scheduleInterupter(task, threadName, p.getValue());
-        } else {
-            super.handleInternal(task, s);
+                }));
+                p.getValue().setName(threadName);
+                p.getValue().start();
+                getNode().getPendingHandler().scheduleInterupter(task, threadName, p.getValue());
+                break;
+            case HEARTBEAT_I:
+                getNode().getSender().sendSignal(task, HEARTBEAT);
+                break;
+            default:
+                super.handleInternal(task,s);
         }
     }
 }

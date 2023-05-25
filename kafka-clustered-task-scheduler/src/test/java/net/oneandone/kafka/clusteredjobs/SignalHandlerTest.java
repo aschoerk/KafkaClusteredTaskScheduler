@@ -1,7 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
 import static net.oneandone.kafka.clusteredjobs.states.StateEnum.ERROR;
-import static net.oneandone.kafka.clusteredjobs.support.HeartBeatTask.HeartBeatTaskBuilder.aHeartBeatTask;
+import static net.oneandone.kafka.clusteredjobs.support.TestTask.TestTaskBuilder.aTestTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.HashMap;
@@ -13,7 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import net.oneandone.kafka.clusteredjobs.states.StateEnum;
-import net.oneandone.kafka.clusteredjobs.support.HeartBeatTask;
+import net.oneandone.kafka.clusteredjobs.support.TestTask;
 import net.oneandone.kafka.clusteredjobs.support.TestContainer;
 
 public class SignalHandlerTest {
@@ -160,17 +160,17 @@ public class SignalHandlerTest {
             senderNode = node.getUniqueNodeId();
         }
 
-        HeartBeatTask heartBeatTask = aHeartBeatTask().build();
-        Task task = node.register(heartBeatTask);
+        TestTask testTask = aTestTask().build();
+        Task task = node.register(testTask);
         task.localState = localState;
         Signal signalReceived = new Signal();
-        signalReceived.taskName = heartBeatTask.getName();
+        signalReceived.taskName = testTask.getName();
         signalReceived.nodeProcThreadId = senderNode;
         signalReceived.signal = signal;
         signalReceived.setCurrentOffset(0L);
         HashMap<String, Signal> map = new HashMap<>();
         map.put(signalReceived.nodeProcThreadId, signalReceived);
-        node.getSignalHandler().handle(heartBeatTask.getName(), map);
+        node.getSignalHandler().handle(testTask.getName(), map);
 
 
         Assertions.assertEquals(newState, task.getLocalState());
@@ -181,7 +181,7 @@ public class SignalHandlerTest {
         if(signal.isInternal()) {
             signalReceived.nodeProcThreadId = node.getUniqueNodeId() + "X";
             nodeFactory.signalSent = null;
-            node.getSignalHandler().handle(heartBeatTask.getName(), map);
+            node.getSignalHandler().handle(testTask.getName(), map);
             assertEquals(ERROR, task.getLocalState());
             Assertions.assertNull(nodeFactory.signalSent);
         }

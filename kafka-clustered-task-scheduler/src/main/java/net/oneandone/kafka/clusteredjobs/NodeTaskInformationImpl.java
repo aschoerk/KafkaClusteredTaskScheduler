@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
+import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 /**
