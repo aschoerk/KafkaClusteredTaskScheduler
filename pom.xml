@@ -6,7 +6,7 @@
     <artifactId>kafka-clustered-task-scheduler-parent</artifactId>
     <packaging>pom</packaging>
     <name>kafka-clustered-task-scheduler-parent</name>
-    <version>0.0.1</version>
+    <version>0.0.2-SNAPSHOT</version>
 
     <description>The parent pom for kafka-clustered-task-scheduler</description>
     <modules>
@@ -374,7 +374,7 @@
         <url>https://github.com/aschoerk/KafkaClusteredTaskScheduler/</url>
         <connection>scm:git:ssh://git@github.com/aschoerk/KafkaClusteredTaskScheduler.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/aschoerk/KafkaClusteredTaskScheduler.git</developerConnection>
-        <tag>kafka-clustered-task-scheduler-parent-0.0.1</tag>
+        <tag>HEAD</tag>
     </scm>
 
 </project>
