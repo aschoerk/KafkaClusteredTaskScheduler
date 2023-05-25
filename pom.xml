@@ -289,7 +289,7 @@
                     <redirectTestOutputToFile>true</redirectTestOutputToFile>
                     <forkCount>0.7C</forkCount>
                     <!-- the following line allows the debugging of the deployment -->
-                    <!--argLine>-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005</argLine-->
+                    <argLine>-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005</argLine>
                 </configuration>
             </plugin>
             <plugin>
