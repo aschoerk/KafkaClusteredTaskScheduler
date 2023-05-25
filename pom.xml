@@ -37,7 +37,7 @@
         <!-- internal -->
         <commons-lang3.version>3.9</commons-lang3.version>
         <!-- external -->
-        <xstream.version>1.4.19</xstream.version>
+        <xstream.version>1.4.20</xstream.version>
         <jettison.version>1.5.4</jettison.version>
         <kafka.version>3.4.0</kafka.version>
         <scala.version>2.13</scala.version>
