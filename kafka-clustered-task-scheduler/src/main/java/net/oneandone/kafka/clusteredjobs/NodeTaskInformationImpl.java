@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 import net.oneandone.kafka.clusteredjobs.states.StateEnum;
 
 /**
@@ -59,18 +58,18 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
     static class TaskInformationImpl implements TaskInformation {
 
         private String name;
-        private StateEnum tastState;
+        private StateEnum taskState;
         private String nodeName;
 
-        public TaskInformationImpl(final String name, final StateEnum tastState, final String nodeName) {
+        public TaskInformationImpl(final String name, final StateEnum taskState, final String nodeName) {
             this.name = name;
-            this.tastState = tastState;
+            this.taskState = taskState;
             this.nodeName = nodeName;
         }
 
         public TaskInformationImpl(Task task) {
             this.name = task.getDefinition().getName();
-            this.tastState = task.getLocalState();
+            this.taskState = task.getLocalState();
             this.nodeName = task.getCurrentExecutor().orElse(null);
         }
 
@@ -81,7 +80,7 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
 
         @Override
         public StateEnum getState() {
-            return tastState;
+            return taskState;
         }
 
         @Override
@@ -93,7 +92,7 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
         public String toString() {
             return "TaskInformationImpl{" +
                    "name='" + name + '\'' +
-                   ", tastState=" + tastState +
+                   ", tastState=" + taskState +
                    ", nodeName='" + nodeName + '\'' +
                    '}';
         }

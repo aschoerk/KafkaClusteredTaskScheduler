@@ -6,9 +6,7 @@ import java.util.Optional;
 
 import net.oneandone.kafka.clusteredjobs.api.Node;
 
-/**
- *  Signal represents Kafka-Events used to initiate state-transitions on Nodes
- */
+
 public class Signal implements Comparable<Signal> {
     /**
      * The name of the task for which the state change is initiated

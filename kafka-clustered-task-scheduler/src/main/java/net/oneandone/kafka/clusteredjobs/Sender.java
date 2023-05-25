@@ -71,7 +71,8 @@ public class Sender extends StoppableBase {
         toSend.timestamp = node.getNow();
         toSend.reference = reference;
         if (!doShutdown()) {
-            getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(), KbXStream.jsonXStream.toXML(toSend)));
+            getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(),
+                    JsonMarshaller.gson.toJson(toSend)));
             syncProducer.flush();
         }
     }

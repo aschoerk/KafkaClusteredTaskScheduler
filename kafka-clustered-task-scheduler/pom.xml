@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
     <name>kafka-clustered-task-scheduler</name>
 
-    <description>The parent pom for cdibatch</description>
+    <description>The parent pom for kafka-clustered-task-scheduler</description>
     <properties>
 
     </properties>
@@ -26,12 +26,8 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.thoughtworks.xstream</groupId>
-            <artifactId>xstream</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.codehaus.jettison</groupId>
-            <artifactId>jettison</artifactId>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
         </dependency>
         <!-- pure test dependencies -->
         <dependency>

@@ -1,6 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static java.lang.management.ManagementFactory.*;
+import static java.lang.management.ManagementFactory.getRuntimeMXBean;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.DOHEARTBEAT;
 
 import java.net.Inet4Address;
@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import net.oneandone.kafka.clusteredjobs.api.Container;
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
@@ -342,9 +345,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     }
 
     void sendNodeTaskInformation(boolean onlyIfChanged) {
-        final String currentNodeTaskInformation = KbXStream.jsonXStream.toXML(getNodeInformation());
+        GsonBuilder builder = new GsonBuilder();
+        Gson gson = builder.create();
+        final String currentNodeTaskInformation = JsonMarshaller.gson.toJson(getNodeInformation());
+        // final String currentNodeTaskInformation = JsonMarshaller.jsonXStream.toXML(getNodeInformation());
         if (!onlyIfChanged || !currentNodeTaskInformation.equals(lastNodeTaskInformation)) {
-            lastNodeTaskInformation = currentNodeTaskInformation;
+            lastNodeTaskInformation = currentNodeTaskInformation.toString();
             getSender().getSyncProducer().send(new ProducerRecord(syncTopic, getUniqueNodeId(),
                     currentNodeTaskInformation));
         }

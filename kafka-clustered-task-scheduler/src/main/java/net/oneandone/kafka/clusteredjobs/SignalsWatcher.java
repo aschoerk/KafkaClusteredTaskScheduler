@@ -80,14 +80,14 @@ public class SignalsWatcher extends StoppableBase {
 
     void readOldSignals() {
         iterateOldRecords(node.syncTopic, node.bootstrapServers, node.getUniqueNodeId(), r -> {
-            Object event = KbXStream.jsonXStream.fromXML(r.value());
-            if(event instanceof Signal) {
-                Signal signal = (Signal) event;
+            if(r.value().contains("ignal")) {
+                Signal signal = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
                 signal.setCurrentOffset(r.offset());
                 oldSignals.add(signal);
             }
             else {
-                NodeTaskInformationImpl nodeInformation = (NodeTaskInformationImpl) event;
+                NodeTaskInformationImpl nodeInformation =
+                        JsonMarshaller.gson.fromJson(r.value(), NodeTaskInformationImpl.class);
                 nodeInformation.setOffset(r.offset());
                 NodeTaskInformation existing = lastNodeInformation.get(nodeInformation.getName());
                 if(existing == null || existing.getOffset().get() < nodeInformation.getOffset().get()) {
@@ -203,8 +203,8 @@ public class SignalsWatcher extends StoppableBase {
                                     throw new KctmException("TaskScheduler may only synchronize via single-Partition Topic.");
                                 }
                             }
-                            Object event = KbXStream.jsonXStream.fromXML(r.value());
-                            if(event instanceof Signal) {
+                            if(!r.value().startsWith("{\"name\":")) {
+                                Object event = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
                                 Task task = node.tasks.get(signal.taskName);
@@ -237,15 +237,15 @@ public class SignalsWatcher extends StoppableBase {
                                     unmatchedSignals.add(signal);
                                 }
                             }
-                            else if(event instanceof NodeTaskInformation) {
-                                NodeTaskInformationImpl nodeInformation = (NodeTaskInformationImpl) event;
+                            else if(r.value().startsWith("{\"name\":")) {
+                                NodeTaskInformationImpl nodeInformation = JsonMarshaller.gson.fromJson(r.value(), NodeTaskInformationImpl.class);
                                 nodeInformation.setOffset(r.offset());
                                 nodeInformation.setArrivalTime(node.getNow());
                                 lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
                                 node.getNodeTaskInformationHandler().handle(nodeInformation);
                             }
                             else {
-                                throw new KctmException("Unexpected event of type: " + event.getClass().getName() + " on synctopic");
+                                throw new KctmException("Unexpected event of type: " + r.value() + " on synctopic");
                             }
                         }
                     });
