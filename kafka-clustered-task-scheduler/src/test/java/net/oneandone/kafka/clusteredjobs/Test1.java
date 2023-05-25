@@ -35,7 +35,7 @@ public class Test1 extends TestBase {
     TestResources testResources;
 
     boolean runningDuringRelease() {
-        return System.getProperty("releaseVersion") != null;
+        return System.getProperty("surefire.test.class.path") != null;
     }
 
 
