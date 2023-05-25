@@ -280,6 +280,9 @@
                             <version>1.9.2</version>
                         </dependency>
                     </dependencies>
+                    <configuration>
+                        <arguments>-DdoingRelease=true</arguments>
+                    </configuration>
                 </plugin>
             </plugins>
             <!-- for all child artifacts always generate javadoc -->
