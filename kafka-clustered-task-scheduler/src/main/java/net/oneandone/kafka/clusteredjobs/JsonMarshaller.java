@@ -10,7 +10,7 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * Used to marshal and unmarshall kafka events

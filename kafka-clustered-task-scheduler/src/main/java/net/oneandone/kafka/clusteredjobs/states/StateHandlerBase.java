@@ -1,11 +1,10 @@
 package net.oneandone.kafka.clusteredjobs.states;
 
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.CLAIMED_BY_OTHER;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.ERROR;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_NODE;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_OTHER;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.INITIATING;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.UNCLAIMING;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.CLAIMED_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.ERROR;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.UNCLAIMING;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -17,7 +16,8 @@ import net.oneandone.kafka.clusteredjobs.KctmException;
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
-import net.oneandone.kafka.clusteredjobs.Task;
+import net.oneandone.kafka.clusteredjobs.TaskImpl;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -39,7 +39,7 @@ public class StateHandlerBase {
      * @param task the task which is currently handled
      * @param s    the signal which is currently handled
      */
-    protected static void claiming(final Task task, final Signal s) {
+    protected static void claiming(final TaskImpl task, final Signal s) {
         if(Objects.equals(s.getReference(),task.getUnclaimedSignalOffset())) {
             task.setLocalState(CLAIMED_BY_OTHER, s);
         }
@@ -52,7 +52,7 @@ public class StateHandlerBase {
      * @param s       the signal which is currently handled
      * @param message additional information concerning the current processing
      */
-    protected void info(Task task, Signal s, String message) {
+    protected void info(TaskImpl task, Signal s, String message) {
         logger.info("N: {} T: {}/{}  S: {}/{}/{} {}", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState(),
                 s.getNodeProcThreadId(), s.getSignal(), s.getCurrentOffset().orElse(-1L), message);
     }
@@ -64,7 +64,7 @@ public class StateHandlerBase {
      * @param s       the signal which is currently handled
      * @param message additional information concerning the current processing
      */
-    protected void error(Task task, Signal s, String message) {
+    protected void error(TaskImpl task, Signal s, String message) {
         logger.error("N: {} T: {}/{}  S: {}/{}/{} {}", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState(),
                 s.getNodeProcThreadId(), s.getSignal(), s.getCurrentOffset().orElse(-1L), message);
         task.setLocalState(ERROR);
@@ -76,10 +76,10 @@ public class StateHandlerBase {
      * @param task the task which is currently handled
      * @param s    the signal which is currently handled
      */
-    public void handle(final Task task, Signal s) {
+    public void handle(final TaskImpl task, Signal s) {
         synchronized (task) {
             if(task.getLocalState() != state) {
-                throw new KctmException("Expected states to match between statehandler and task");
+                throw new KctmException("Expected states to match between statehandler " + state + " and task: " + task.getLocalState());
             }
             if(s.getSignal().isInternal()) {
                 info(task, s, "internal");
@@ -102,7 +102,7 @@ public class StateHandlerBase {
      * @param task the local task found for the signal
      * @param s    the signal coming from another node
      */
-    protected void unclaimed(final Task task, Signal s) {
+    protected void unclaimed(final TaskImpl task, Signal s) {
         task.setUnclaimedSignalOffset(s.getCurrentOffset().orElse(-1L));
         task.setLocalState(INITIATING);
         node.getPendingHandler().scheduleTaskForClaiming(task);
@@ -115,7 +115,7 @@ public class StateHandlerBase {
      * @param task the local task found for the signal
      * @param s    the signal coming from another node
      */
-    protected void handleSignal(final Task task, final Signal s) {
+    protected void handleSignal(final TaskImpl task, final Signal s) {
         error(task, s, "did not expect foreign signal in this state");
     }
 
@@ -126,7 +126,7 @@ public class StateHandlerBase {
      * @param task the task for which a signal from this node arrived
      * @param s    the signal from this node that arrived
      */
-    protected void handleOwnSignal(final Task task, final Signal s) {
+    protected void handleOwnSignal(final TaskImpl task, final Signal s) {
         error(task, s, "did not expect this own signal in this state");
     }
 
@@ -136,7 +136,7 @@ public class StateHandlerBase {
      * @param task the task for which a signal is to be handled
      * @param s    the internal signal.
      */
-    protected void handleInternal(Task task, Signal s) {
+    protected void handleInternal(TaskImpl task, Signal s) {
         error(task, s, "did not expect internal signal in this state");
     }
 
@@ -156,7 +156,7 @@ public class StateHandlerBase {
      * @param task the task for which the signal arrived
      * @param s    the signal which arrived
      */
-    protected void claimed(final Task task, final Signal s) {
+    protected void claimed(final TaskImpl task, final Signal s) {
         final Optional<String> currentExecutor = task.getCurrentExecutor();
         if((task.getLocalState() == CLAIMED_BY_OTHER || task.getLocalState() == HANDLING_BY_OTHER)
            && currentExecutor.isPresent() && !s.getNodeProcThreadId().equals(currentExecutor.get())) {
@@ -171,7 +171,7 @@ public class StateHandlerBase {
      *
      * @param task the task for which the state is to be set to UNCLAIMING
      */
-    protected void startUnclaiming(final Task task) {
+    protected void startUnclaiming(final TaskImpl task) {
         getNode().getPendingHandler().removeTaskStarter(task);
         getNode().getPendingHandler().removeClaimedHeartbeat(task);
         task.setLocalState(UNCLAIMING);

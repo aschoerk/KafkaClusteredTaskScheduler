@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Comparator;
 
 /**
- * future Task to be done by PendingHandler
+ * future TaskImpl to be done by PendingHandler
  */
 public class PendingEntry  {
 
@@ -15,7 +15,7 @@ public class PendingEntry  {
     final private String identifier;
 
     /**
-     * Scheduled Task
+     * Scheduled TaskImpl
      * @param schedulingTime time to execute the task
      * @param identifier the identifier unique to allow identifying and replacing
      * @param pendingRunnable the task to be executed at schedulingTime

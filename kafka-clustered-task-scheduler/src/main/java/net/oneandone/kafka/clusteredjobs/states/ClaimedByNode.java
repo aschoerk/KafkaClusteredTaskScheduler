@@ -1,19 +1,16 @@
 package net.oneandone.kafka.clusteredjobs.states;
 
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING;
-import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT;
-import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNCLAIM_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNHANDLING_I;
-
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
-import net.oneandone.kafka.clusteredjobs.Task;
+import net.oneandone.kafka.clusteredjobs.TaskImpl;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -32,7 +29,7 @@ public class ClaimedByNode extends StateHandlerBase {
 
 
     @Override
-    protected void handleSignal(final Task task, final Signal s) {
+    protected void handleSignal(final TaskImpl task, final Signal s) {
         switch (s.getSignal()) {
             case CLAIMING:
                 getNode().getSender().sendSignal(task, SignalEnum.CLAIMED);
@@ -43,7 +40,7 @@ public class ClaimedByNode extends StateHandlerBase {
     }
 
     @Override
-    protected void handleOwnSignal(final Task task, final Signal s) {
+    protected void handleOwnSignal(final TaskImpl task, final Signal s) {
         switch (s.getSignal()) {
             case HEARTBEAT:
             case CLAIMED:
@@ -56,7 +53,7 @@ public class ClaimedByNode extends StateHandlerBase {
     }
 
     @Override
-    protected void handleInternal(final Task task, final Signal s) {
+    protected void handleInternal(final TaskImpl task, final Signal s) {
         switch(s.getSignal()) {
             case UNCLAIM_I:
                 startUnclaiming(task);

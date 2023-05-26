@@ -1,8 +1,8 @@
 package net.oneandone.kafka.clusteredjobs.states;
 
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.CLAIMED_BY_OTHER;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_OTHER;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.NEW;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.CLAIMED_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.NEW;
 
 import java.util.Optional;
 
@@ -11,7 +11,8 @@ import org.apache.commons.lang3.tuple.Pair;
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
-import net.oneandone.kafka.clusteredjobs.Task;
+import net.oneandone.kafka.clusteredjobs.TaskImpl;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -25,7 +26,7 @@ public class New extends StateHandlerBase {
         super(node, StateEnum.NEW);
     }
     @Override
-    protected void handleSignal(final Task task, final Signal s) {
+    protected void handleSignal(final TaskImpl task, final Signal s) {
         switch (s.getSignal()) {
             case CLAIMING:
             case CLAIMED:
@@ -46,7 +47,7 @@ public class New extends StateHandlerBase {
     }
 
     @Override
-    protected void handleInternal(final Task task, final Signal s) {
+    protected void handleInternal(final TaskImpl task, final Signal s) {
 
         switch (s.getSignal()) {
             case INITIATING_I:

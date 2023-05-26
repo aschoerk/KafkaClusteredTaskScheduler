@@ -2,7 +2,8 @@ package net.oneandone.kafka.clusteredjobs.states;
 
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
-import net.oneandone.kafka.clusteredjobs.Task;
+import net.oneandone.kafka.clusteredjobs.TaskImpl;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -16,7 +17,7 @@ public class Error extends StateHandlerBase {
         super(node, StateEnum.ERROR);
     }
     @Override
-    protected void handleSignal(final Task task, final Signal s) {
+    protected void handleSignal(final TaskImpl task, final Signal s) {
         switch (s.getSignal()) {
             case UNCLAIMED:
                 super.unclaimed(task,s);

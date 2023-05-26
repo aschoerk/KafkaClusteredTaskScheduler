@@ -31,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 
 /**
@@ -207,7 +207,7 @@ public class SignalsWatcher extends StoppableBase {
                                 Object event = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
-                                Task task = node.tasks.get(signal.taskName);
+                                TaskImpl task = node.tasks.get(signal.taskName);
 
                                 if(task == null && signal.signal == SignalEnum.DOHEARTBEAT) {
                                     if (!signal.equalNode(node)) {
@@ -224,11 +224,11 @@ public class SignalsWatcher extends StoppableBase {
                                     Signal previousSignalFromThisNodeForThisTask = lastSignalPerTaskAndNode.get(signal.taskName).get(signal.nodeProcThreadId);
                                     if(previousSignalFromThisNodeForThisTask != null) {
                                         if(previousSignalFromThisNodeForThisTask.getCurrentOffset().get() > signal.getCurrentOffset().get()) {
-                                            logger.warn("Handled older signal {} for Task later found: {}", signal, previousSignalFromThisNodeForThisTask);
+                                            logger.warn("Handled older signal {} for TaskImpl later found: {}", signal, previousSignalFromThisNodeForThisTask);
                                         }
                                     }
                                     lastSignalPerTaskAndNode.get(signal.taskName).put(signal.nodeProcThreadId, signal);
-                                    logger.info("SignalHandler handle signal {} from {} for Task {}/{}", signal.signal,
+                                    logger.info("SignalHandler handle signal {} from {} for TaskImpl {}/{}", signal.signal,
                                             signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
                                     node.getSignalHandler().handleSignal(task, signal);
                                 }

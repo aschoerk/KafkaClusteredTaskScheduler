@@ -44,7 +44,7 @@ public class Signal implements Comparable<Signal> {
      */
     private transient boolean handled = false;
 
-    Signal(final Task task, final SignalEnum signal) {
+    Signal(final TaskImpl task, final SignalEnum signal) {
         this(task.getNode().getUniqueNodeId(), task.getDefinition().getName(), signal, task.getNode().getNow(), null);
         this.currentOffset = -1L;
     }

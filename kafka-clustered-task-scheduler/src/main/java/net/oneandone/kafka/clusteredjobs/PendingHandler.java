@@ -4,8 +4,8 @@ import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.CLAIMING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.RESURRECTING;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.INITIATING;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.NEW;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.NEW;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +33,11 @@ public class PendingHandler extends StoppableBase {
     private final NodeImpl node;
 
     private final Random random = new Random();
+    private int defaultWaitMillis = 10000;
+
+    public void setDefaultWaitMillis(final int defaultWaitMillisP) {
+        this.defaultWaitMillis = defaultWaitMillisP;
+    }
 
     /**
      * create the single PendingHandler for a node
@@ -84,42 +89,59 @@ public class PendingHandler extends StoppableBase {
     @Override
     public void run() {
         initThreadName(this.getClass().getSimpleName());
+        setRunning();
         while (!doShutdown()) {
-            setRunning();
-            while (sortedPending.size() > 0 && sortedPending.first().getSchedulingTime().isBefore(node.getNow())) {
-                PendingEntry pendingTask = sortedPending.first();
-                sortedPending.remove(pendingTask);
-                logger.info("Found Pending: {}", pendingTask);
-                try {
-                    pendingTask.getPendingRunnable().run();
-                } catch (Throwable t) {
-                    logger.error(String.format("Executing PendingTask: %s Exception:", pendingTask.getIdentifier()), t);
-                }
-            }
-            Duration toWait;
-            if(sortedPending.size() > 0) {
-                PendingEntry nextTask = sortedPending.first();
-                toWait = Duration.between(node.getNow(), nextTask.getSchedulingTime()).plusMillis(1);
-            }
-            else {
-                toWait = Duration.ofMillis(10000);
-            }
-            if(!toWait.isNegative()) {
-                try {
-                    final long toWaitTime = toWait.toMillis();
-                    logger.info("Waiting {} milliseconds", toWaitTime);
-                    if (toWaitTime > 0) {
-                        synchronized (this) {
-                            this.wait(toWait.toMillis());
-                        }
+            loopBody();
+        }
+    }
+
+    void loopBody() {
+        selectAndExecute();
+        Duration toWait;
+        toWait = determineWaitTime();
+        waitOrAcceptNotify(toWait);
+    }
+
+    private void waitOrAcceptNotify(final Duration toWait) {
+        if(!toWait.isNegative()) {
+            try {
+                final long toWaitTime = toWait.toMillis();
+                logger.info("Waiting for notify or {} milliseconds", toWaitTime);
+                if (toWaitTime > 0) {
+                    synchronized (this) {
+                        this.wait(toWait.toMillis());
                     }
-                    logger.info("Awakened");
-                } catch (InterruptedException e) {
-                    if (!doShutdown())
-                        logger.error("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
-                    else
-                        logger.info("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
                 }
+            } catch (InterruptedException e) {
+                if (!doShutdown())
+                    logger.error("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
+                else
+                    logger.info("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
+            }
+        }
+    }
+
+    private Duration determineWaitTime() {
+        Duration toWait;
+        if(sortedPending.size() > 0) {
+            PendingEntry nextTask = sortedPending.first();
+            toWait = Duration.between(node.getNow(), nextTask.getSchedulingTime()).plusMillis(1);
+        }
+        else {
+            toWait = Duration.ofMillis(defaultWaitMillis);
+        }
+        return toWait;
+    }
+
+    private void selectAndExecute() {
+        while (sortedPending.size() > 0 && !sortedPending.first().getSchedulingTime().isAfter(node.getNow())) {
+            PendingEntry pendingTask = sortedPending.first();
+            sortedPending.remove(pendingTask);
+            logger.info("Found Pending: {}", pendingTask);
+            try {
+                pendingTask.getPendingRunnable().run();
+            } catch (Throwable t) {
+                logger.error(String.format("Executing PendingTask: %s Exception:", pendingTask.getIdentifier()), t);
             }
         }
     }
@@ -128,7 +150,7 @@ public class PendingHandler extends StoppableBase {
      * used to schedule the HEARTBEAT-Signal for claimed (not executing) tasks
      * @param task the task currently claimed, for which the HEARTBEAT signal is to be generated.
      */
-    public void scheduleTaskHeartbeatOnNode(Task task) {
+    public void scheduleTaskHeartbeatOnNode(TaskImpl task) {
         Instant now = node.getNow();
         Duration claimedSignalPeriod = task.getDefinition().getClaimedSignalPeriod();
         String identifier = heartbeatSignallerIdentifier(task);
@@ -178,7 +200,7 @@ public class PendingHandler extends StoppableBase {
      * Schedule a random waiting time before trying to claim a task
      * @param task the task, currently in INITIATING state for which to wait before CLAIMING.
      */
-    public void scheduleTaskForClaiming(final Task task) {
+    public void scheduleTaskForClaiming(final TaskImpl task) {
         final int bound = (int) task.getDefinition().getPeriod().toMillis();
         long toWait = random.nextInt(bound);
 
@@ -197,7 +219,7 @@ public class PendingHandler extends StoppableBase {
      * schedule the time until a claimed task is to be handled.
      * @param task the claimed task to be started
      */
-    public void scheduleTaskHandlingOnNode(Task task) {
+    public void scheduleTaskHandlingOnNode(TaskImpl task) {
         Instant initialTs = task.getDefinition().getInitialTimestamp();
         Instant nextCall;
         if (initialTs != null) {
@@ -221,7 +243,7 @@ public class PendingHandler extends StoppableBase {
      * Schedule a unclaimed task to be checked for resurrection.
      * @param task the task to be checked for HEARTBEAT signal received.
      */
-    void scheduleTaskResurrection(final Task task) {
+    void scheduleTaskResurrection(final TaskImpl task) {
         Instant now = node.getNow();
         Duration diff = Duration.between(task.getLastClaimedInfo(), now);
         Instant nextCall = task.getLastClaimedInfo().plus(task.getDefinition().getClaimedSignalPeriod().multipliedBy(3));
@@ -240,7 +262,7 @@ public class PendingHandler extends StoppableBase {
      * @param threadName the name of the thread executing the task. To be checked because it will change when the thread is reused.
      * @param thread the thread to be interrupted.
      */
-    public void scheduleInterupter(final Task task, final String threadName, final Thread thread) {
+    public void scheduleInterupter(final TaskImpl task, final String threadName, final Thread thread) {
         Instant now = node.getNow();
         Instant nextCall = now.plus(task.getDefinition().getMaxDuration());
         final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_" + threadName, new Runnable() {
@@ -259,7 +281,7 @@ public class PendingHandler extends StoppableBase {
      * remove scheduled claimed-heartbeat generation
      * @param t the task for which the claimed-heartbeat is supposed to be scheduled
      */
-    public void removeClaimedHeartbeat(final Task t) {
+    public void removeClaimedHeartbeat(final TaskImpl t) {
         removePending(heartbeatSignallerIdentifier(t),false);
     }
 
@@ -267,7 +289,7 @@ public class PendingHandler extends StoppableBase {
      * remove check for TaskResurrection.
      * @param t the task claimed by another node, to be checked if heart-beats arrived in time
      */
-    public void removeTaskResurrection(final Task t) {
+    public void removeTaskResurrection(final TaskImpl t) {
         removePending(resurrectionIdentifier(t),true);
     }
 
@@ -276,19 +298,19 @@ public class PendingHandler extends StoppableBase {
      * remove the scheduled starting of a task
      * @param t the task having been scheduled for starting
      */
-    public void removeTaskStarter(final Task t) {
+    public void removeTaskStarter(final TaskImpl t) {
         removePending(taskStarterIdentifier(t), false);
     }
 
-    private static String heartbeatSignallerIdentifier(final Task task) {
+    private static String heartbeatSignallerIdentifier(final TaskImpl task) {
         return task.getDefinition().getName() + "_" + "ClaimedSignaler";
     }
 
-    private static String resurrectionIdentifier(final Task task) {
+    private static String resurrectionIdentifier(final TaskImpl task) {
         return task.getDefinition().getName() + "_Resurrection";
     }
 
-    private static String taskStarterIdentifier(final Task task) {
+    private static String taskStarterIdentifier(final TaskImpl task) {
         return task.getDefinition().getName() + "_" + "TaskStarter";
     }
 

@@ -1,9 +1,9 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.CLAIMED_BY_NODE;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.ERROR;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_NODE;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.NEW;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.CLAIMED_BY_NODE;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.ERROR;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_NODE;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.NEW;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -20,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -49,7 +49,7 @@ public class NodeTaskInformationHandler {
         this.node = node;
     }
 
-    boolean unsureState(Task task) {
+    boolean unsureState(TaskImpl task) {
         StateEnum state = task.getLocalState();
         return state == NEW || state == ERROR;
     }
@@ -79,7 +79,7 @@ public class NodeTaskInformationHandler {
             nodesSeen.add(nodeTaskInformation.getName());
             nodesReceivedFrom.add(nodeTaskInformation.getName());
             nodeTaskInformation.getTaskInformation().forEach(ti -> {
-                Task task = node.tasks.get(ti.getTaskName());
+                TaskImpl task = node.tasks.get(ti.getTaskName());
                 if (task != null && ti.getState() != null) {
                     if (task.getLocalState() == NEW) {
                         switch (ti.getState()) {

@@ -1,6 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.HANDLING_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -10,15 +10,15 @@ import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.Node;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
  */
-public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
+public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     private final TaskDefinition taskDefinition;
-    static final Logger logger = LoggerFactory.getLogger(Task.class);
+    static final Logger logger = LoggerFactory.getLogger(TaskImpl.class);
 
     StateEnum localState;
 
@@ -36,7 +36,7 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
     int executionsOnNode = 0;
 
 
-    Task(Node node, TaskDefinition taskDefinition) {
+    TaskImpl(Node node, TaskDefinition taskDefinition) {
         this.node = node;
         this.taskDefinition = taskDefinition;
     }
@@ -84,7 +84,7 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
      * @param stateToSet state to be set now
      */
     public void setLocalState(final StateEnum stateToSet) {
-        logger.info("Node: {} Task {} Setting state: {} from state: {}",node.getUniqueNodeId(), taskDefinition.getName(), stateToSet, getLocalState());
+        logger.info("Node: {} TaskImpl {} Setting state: {} from state: {}",node.getUniqueNodeId(), taskDefinition.getName(), stateToSet, getLocalState());
         switch (stateToSet) {
             case HANDLING_BY_OTHER:
             case CLAIMED_BY_OTHER:
@@ -144,7 +144,7 @@ public class Task implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     @Override
     public String toString() {
-        return "Task{" +
+        return "TaskImpl{" +
                "currentState=" + localState +
                '}';
     }

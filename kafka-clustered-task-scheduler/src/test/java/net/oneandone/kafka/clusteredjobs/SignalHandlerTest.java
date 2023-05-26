@@ -1,6 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.ERROR;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.ERROR;
 import static net.oneandone.kafka.clusteredjobs.support.TestTask.TestTaskBuilder.aTestTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -9,10 +9,11 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 import net.oneandone.kafka.clusteredjobs.support.TestTask;
 import net.oneandone.kafka.clusteredjobs.support.TestContainer;
 
@@ -24,14 +25,14 @@ public class SignalHandlerTest {
         public Sender createSender(final NodeImpl node) {
             return  new Sender(node) {
                 @Override
-                public void sendSignal(final Task t, final SignalEnum signal) {
+                public void sendSignal(final TaskImpl t, final SignalEnum signal) {
                     signalSent = signal;
                 }
             };
         }
 
         @Override
-        public NodeTaskInformationHandler createNodeTaskInformationHandler(final NodeImpl node) {
+            public NodeTaskInformationHandler createNodeTaskInformationHandler(final NodeImpl node) {
             return new NodeTaskInformationHandler(node) {
                 @Override
                 public Optional<Pair<String, SignalEnum>> getUnknownTaskSignal(final String taskname) {
@@ -68,9 +69,10 @@ public class SignalHandlerTest {
 
     @ParameterizedTest
     @CsvSource({
-            "INITIATING_I,ME,NULL,NEW,",
-            "INITIATING_I,ME,CLAIMED_BY_OTHER,INITIATING,",
-            "INITIATING_I,ME,HANDLING_BY_OTHER,INITIATING,",
+            "INITIATING_I,ME,NEW,INITIATING,",
+            "INITIATING_I,ME,CLAIMING,ERROR,",
+            "INITIATING_I,ME,CLAIMED_BY_OTHER,ERROR,",
+            "INITIATING_I,ME,HANDLING_BY_OTHER,ERROR,",
 //            "DOHEARTBEAT,a,CLAIMED_BY_NODE,CLAIMED_BY_NODE,HEARTBEAT",
 //            "DOHEARTBEAT,a,HANDLING_BY_NODE,HANDLING_BY_NODE,HANDLING",
 //            "DOHEARTBEAT,a,NEW,NEW,",
@@ -161,30 +163,29 @@ public class SignalHandlerTest {
         }
 
         TestTask testTask = aTestTask().build();
-        Task task = node.register(testTask);
+        TaskImpl task = node.register(testTask);
         task.localState = localState;
         Signal signalReceived = new Signal();
         signalReceived.taskName = testTask.getName();
         signalReceived.nodeProcThreadId = senderNode;
         signalReceived.signal = signal;
         signalReceived.setCurrentOffset(0L);
-        HashMap<String, Signal> map = new HashMap<>();
-        map.put(signalReceived.nodeProcThreadId, signalReceived);
-        node.getSignalHandler().handle(testTask.getName(), map);
-
+        node.getSignalHandler().handleSignal(task, signalReceived);
 
         Assertions.assertEquals(newState, task.getLocalState());
         if(expectedSignal != null) {
             Assertions.assertEquals(expectedSignal, nodeFactory.signalSent);
         }
 
-        if(signal.isInternal()) {
-            signalReceived.nodeProcThreadId = node.getUniqueNodeId() + "X";
-            nodeFactory.signalSent = null;
-            node.getSignalHandler().handle(testTask.getName(), map);
-            assertEquals(ERROR, task.getLocalState());
-            Assertions.assertNull(nodeFactory.signalSent);
-        }
+    }
 
+    @Test
+    void testInitiatingI() {
+        // TODO: test startup/register of task in different situations
+    }
+
+    @Test
+    void testUnclaimI() {
+        // TODO: unclaimI may be called in different situations
     }
 }

@@ -9,7 +9,8 @@ class InternalSignal extends Signal {
      * @param task the receiving task
      * @param signal the internal signal
      */
-    public InternalSignal(Task task, SignalEnum signal) {
+    public InternalSignal(TaskImpl task, SignalEnum signal) {
         super(task, signal);
+        this.nodeProcThreadId = task.getNode().getUniqueNodeId();
     }
 }

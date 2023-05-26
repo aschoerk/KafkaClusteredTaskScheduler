@@ -46,7 +46,7 @@ public class NodeFactoryImpl implements NodeFactory {
     }
 
     @Override
-    public Task createTask(final Node node, final TaskDefinition taskDefinition) {
-        return new Task(node, taskDefinition);
+    public TaskImpl createTask(final Node node, final TaskDefinition taskDefinition) {
+        return new TaskImpl(node, taskDefinition);
     }
 }

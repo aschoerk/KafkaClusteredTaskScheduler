@@ -62,11 +62,11 @@ public interface NodeFactory {
     PendingEntry createPendingEntry(Instant timestamp, String name, Runnable runnable);
 
     /**
-     * create a new Task for node
+     * create a new TaskImpl for node
      * @param node the node the task is created for
      * @param taskDefinition the definition, how the task is to be scheduled, controlled, executed
-     * @return the new runtime-representation of a Task on this node.
+     * @return the new runtime-representation of a TaskImpl on this node.
      */
-    Task createTask(Node node, TaskDefinition taskDefinition);
+    TaskImpl createTask(Node node, TaskDefinition taskDefinition);
 
 }

@@ -30,6 +30,8 @@ public class TestTask extends TaskDefaults {
 
     private Duration handlingDuration = period.dividedBy(5);
 
+    private AtomicLong executions = new AtomicLong(0L);
+
     private TestTask() {
     }
 
@@ -60,6 +62,10 @@ public class TestTask extends TaskDefaults {
         this.handlingDuration = handlingDuration;
     }
 
+    public long getExecutions() {
+        return executions.get();
+    }
+
 
     @Override
     public Duration getPeriod() {
@@ -80,6 +86,7 @@ public class TestTask extends TaskDefaults {
     @Override
     public Runnable getCode(final Node node) {
         return () -> {
+            executions.incrementAndGet();
             final String uniqueNodeId = node.getUniqueNodeId();
             if(!getRunning().compareAndSet(false, true)) {
                     logger.error("Testtask on {} started a second time", uniqueNodeId);
@@ -97,6 +104,8 @@ public class TestTask extends TaskDefaults {
 
         };
     }
+
+
 
 
     public static final class TestTaskBuilder {

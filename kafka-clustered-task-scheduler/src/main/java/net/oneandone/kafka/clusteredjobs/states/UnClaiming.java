@@ -2,12 +2,13 @@ package net.oneandone.kafka.clusteredjobs.states;
 
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.CLAIMING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNCLAIMED;
-import static net.oneandone.kafka.clusteredjobs.states.StateEnum.CLAIMING;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.CLAIMING;
 
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
-import net.oneandone.kafka.clusteredjobs.Task;
+import net.oneandone.kafka.clusteredjobs.TaskImpl;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -22,12 +23,12 @@ public class UnClaiming extends StateHandlerBase {
     }
 
     @Override
-    protected void handleSignal(final Task task, final Signal s) {
+    protected void handleSignal(final TaskImpl task, final Signal s) {
         info(task, s, "Unhandled own message in unclaiming");
     }
 
     @Override
-    protected void handleOwnSignal(final Task task, final Signal s) {
+    protected void handleOwnSignal(final TaskImpl task, final Signal s) {
         if(s.getSignal() == UNCLAIMED) {
             task.setUnclaimedSignalOffset(s.getCurrentOffset().get());
             task.setLocalState(StateEnum.INITIATING);
@@ -38,7 +39,7 @@ public class UnClaiming extends StateHandlerBase {
     }
 
     @Override
-    protected void handleInternal(final Task task, final Signal s) {
+    protected void handleInternal(final TaskImpl task, final Signal s) {
         if(s.getSignal() == CLAIMING_I) {
             task.setLocalState(CLAIMING);
             getNode().getSender().sendSignal(task, SignalEnum.CLAIMING, task.getUnclaimedSignalOffset());

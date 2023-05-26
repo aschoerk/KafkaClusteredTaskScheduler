@@ -45,7 +45,7 @@ public class Sender extends StoppableBase {
      * @param t the task for which a signal is to be sent
      * @param signal the SignalEnum to be sent.
      */
-    public void sendSignal(final Task t, final SignalEnum signal) {
+    public void sendSignal(final TaskImpl t, final SignalEnum signal) {
         sendSignal(t, signal, null);
     }
 
@@ -55,7 +55,7 @@ public class Sender extends StoppableBase {
      * @param signal the SignalEnum to be sent.
      * @param reference the offset of a signal on the stream which is referred.
      */
-    public void sendSignal(final Task t, final SignalEnum signal, Long reference) {
+    public void sendSignal(final TaskImpl t, final SignalEnum signal, Long reference) {
         logger.info("Sending from N: {} for task {} int State: {} Signal: {} Reference: {}",
                                         node.getUniqueNodeId(),
                 t != null ? t.getDefinition().getName() : "NodeTask", t != null ? t.getLocalState() : "null", signal,

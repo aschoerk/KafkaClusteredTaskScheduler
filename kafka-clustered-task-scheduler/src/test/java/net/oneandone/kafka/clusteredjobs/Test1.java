@@ -1,21 +1,19 @@
 package net.oneandone.kafka.clusteredjobs;
 
 import static net.oneandone.kafka.clusteredjobs.support.TestTask.TestTaskBuilder.aTestTask;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import org.apache.commons.lang3.mutable.MutableObject;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -23,7 +21,6 @@ import com.oneandone.iocunit.IocJUnit5Extension;
 import com.oneandone.iocunit.analyzer.annotations.TestClasses;
 
 import jakarta.inject.Inject;
-import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 import net.oneandone.kafka.clusteredjobs.support.TestTask;
 
 @ExtendWith(IocJUnit5Extension.class)
@@ -33,12 +30,24 @@ public class Test1 extends TestBase {
     public static final int nodeTaskCount = 10;
     @Inject
     TestResources testResources;
+    private int cycleNum = 20;
+    private int waitMillis = 10000;
 
     boolean runningDuringRelease() {
         // return System.getProperty("surefire.test.class.path") != null;
         return System.getProperty("doingRelease") != null;
     }
 
+    void cycle(String testName, TestTask testTask, Runnable r) throws InterruptedException {
+        int count = 0;
+        while (count++ < cycleNum) {
+            long currentExecutions = testTask.getExecutions();
+            Thread.sleep(waitMillis );
+            logger.info("Test {} Loop {} Done: Executions of {}: {} Diff: {}",testName, Instant.now(), testTask.getName(),
+                    testTask.getExecutions(), testTask.getExecutions() - currentExecutions);
+            assertNotEquals(currentExecutions, testTask.getExecutions());
+        }
+    }
 
     @Test
     void testUsingOneNode() throws InterruptedException {
@@ -48,11 +57,9 @@ public class Test1 extends TestBase {
         NodeImpl node1 = newNode();
         final TestTask taskDefinition = aTestTask().withName("TestTask").withMaxExecutionsOnNode(5L).withPeriod(Duration.ofMillis(500)).build();
         node1.register(taskDefinition);
-        int count = 0;
-        while (count++ < 20) {
-            Thread.sleep(10000);
-            logger.info("TestLoop {}", Instant.now());
-        }
+        cycle("testUsingOneNode", taskDefinition, () -> {
+
+        });
         node1.shutdown();
         checkLogs();
     }
@@ -70,16 +77,11 @@ public class Test1 extends TestBase {
                 .withMaxExecutionsOnNode(5L)
                 .build();
         NodeImpl node1 = newNode();
-        Task task = node1.register(testTask);
-        int count = 0;
-        while (count++ < 20) {
-            Thread.sleep(10000);
-            logger.info("TestLoop {}", Instant.now());
+        TaskImpl task = node1.register(testTask);
+        cycle("tstMaxExecutionTime", testTask, () -> {
             outputSignals();
-
             assertTrue(testTask.getInterrupted().get() > 0);
-        }
-
+        });
     }
 
     @Test
@@ -97,12 +99,9 @@ public class Test1 extends TestBase {
         node1.register(testTask);
         NodeImpl node2 = newNode();
         node2.register(testTask);
-        int count = 0;
-        while (count++ < 20) {
-            Thread.sleep(10000);
-            logger.info("TestLoop {}", Instant.now());
+        cycle("testUsingTwoNodes",testTask, () -> {
             outputSignals();
-        }
+        });
         node1.shutdown();
         node2.shutdown();
         checkLogs();
@@ -118,23 +117,19 @@ public class Test1 extends TestBase {
         final TestTask heartBeat2 = aTestTask().withName("Test1_2").withHandlingDuration(Duration.ofMillis(nodeTaskCount)).build();
         node1.register(heartBeat1);
         node1.register(heartBeat2);
-        NodeImpl node2 = newNode();
-        node2.register(heartBeat1);
-        node2.register(heartBeat2);
-        node2.run();
-        int count = 0;
-        while (count++ < 20) {
-            logger.warn("Starting loop {} of 20", count);
-            Thread.sleep(3000);
-            logger.info("TestLoop {}", Instant.now());
-            node2.shutdown();
-            node2 = newNode();
-            node2.register(heartBeat1);
-            node2.register(heartBeat2);
+        final MutableObject<NodeImpl> node2 = new MutableObject<>(newNode());
+        node2.getValue().register(heartBeat1);
+        node2.getValue().register(heartBeat2);
+        node2.getValue().run();
+        cycle("testUsingTwoNodesShuttingDown", heartBeat1,  () -> {
+            node2.getValue().shutdown();
+            node2.setValue(newNode());
+            node2.getValue().register(heartBeat1);
+            node2.getValue().register(heartBeat2);
             outputSignals();
-        }
+        });
         node1.shutdown();
-        node2.shutdown();
+        node2.getValue().shutdown();
         checkLogs();
     }
 
@@ -154,10 +149,7 @@ public class Test1 extends TestBase {
         definitions.forEach(d -> {
             nodes.forEach(n -> n.register(d));
         });
-        int count = 0;
-        while (count++ < 20) {
-            logger.warn("Starting loop {} of 20", count);
-            Thread.sleep(10000);
+        cycle("testUsingTenNodesAnd10Tasks",definitions.get(0), () -> {
             int restartCount = random.nextInt(nodeTaskCount-2)  + 2;
             Set<Integer> toRestartNodes = new HashSet<>();
             for (int i = 0; i <= restartCount; i++) {
@@ -178,7 +170,7 @@ public class Test1 extends TestBase {
                     node.register(d);
                 });
             });
-        }
+        });
         logger.warn("Completed test");
         checkLogs();
     }

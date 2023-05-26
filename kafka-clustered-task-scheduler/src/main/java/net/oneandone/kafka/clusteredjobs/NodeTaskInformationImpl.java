@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -67,7 +67,7 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
             this.nodeName = nodeName;
         }
 
-        public TaskInformationImpl(Task task) {
+        public TaskInformationImpl(TaskImpl task) {
             this.name = task.getDefinition().getName();
             this.taskState = task.getLocalState();
             this.nodeName = task.getCurrentExecutor().orElse(null);

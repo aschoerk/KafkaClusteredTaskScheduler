@@ -24,7 +24,7 @@ import com.google.gson.GsonBuilder;
 import net.oneandone.kafka.clusteredjobs.api.Container;
 import net.oneandone.kafka.clusteredjobs.api.NodeTaskInformation;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
  * @author aschoerk
@@ -55,7 +55,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     private Thread pendingHandlerThread;
     final String bootstrapServers;
 
-    ConcurrentHashMap<String, Task> tasks = new ConcurrentHashMap<>();
+    ConcurrentHashMap<String, TaskImpl> tasks = new ConcurrentHashMap<>();
 
     Integer taskPartition = null;
     private volatile Sender sender;
@@ -98,11 +98,11 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     }
 
     /**
-     * return the runtime-information of a registered Task
+     * return the runtime-information of a registered TaskImpl
      * @param taskName the name of the task being requested
-     * @return the runtime-information of a registered Task
+     * @return the runtime-information of a registered TaskImpl
      */
-    public Task getTask(String taskName) {
+    public TaskImpl getTask(String taskName) {
         return this.tasks.get(taskName);
     }
 
@@ -122,7 +122,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     public NodeTaskInformation getNodeInformation() {
         NodeTaskInformationImpl result = new NodeTaskInformationImpl(getUniqueNodeId());
         tasks.entrySet().forEach(e -> {
-            Task task = e.getValue();
+            TaskImpl task = e.getValue();
             result.addTaskInformation(new NodeTaskInformationImpl.TaskInformationImpl(task));
         });
         return result;
@@ -193,7 +193,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
      * @param taskDefinition the description how the task is to be executed
      * @return the runtime-representation of the registered task.
      */
-    public Task register(TaskDefinition taskDefinition) {
+    public TaskImpl register(TaskDefinition taskDefinition) {
         if(!isRunning()) {
             throw new KctmException("trying to register in not running node");
         }
@@ -206,8 +206,8 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
                 }
             }
         }
-        Task task = nodeFactory.createTask(this, taskDefinition);
-        task.setLocalState(StateEnum.NULL);
+        TaskImpl task = nodeFactory.createTask(this, taskDefinition);
+        task.setLocalState(StateEnum.NEW);
         this.tasks.put(taskDefinition.getName(), task);
         getSignalHandler().handleInternalSignal(task, SignalEnum.INITIATING_I);
         getPendingHandler().scheduleWaitForNewSwitch(WAIT_IN_NEW_STATE);
@@ -251,7 +251,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         stoppables.forEach(s -> s.shutdown());
         stoppables.clear();
         tasks.entrySet().forEach(e -> {
-            Task t = e.getValue();
+            TaskImpl t = e.getValue();
             if (t.getLocalState() == StateEnum.HANDLING_BY_NODE || t.getLocalState() == StateEnum.CLAIMED_BY_NODE) {
                 getSignalHandler().handleInternalSignal(e.getValue(), SignalEnum.UNCLAIM_I);
             }

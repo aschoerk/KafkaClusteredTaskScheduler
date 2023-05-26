@@ -52,7 +52,7 @@ public abstract class TestBase {
         records.forEach(r -> {
             if(r.value().contains("ignal")) {
                 Signal s = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
-                logger.info(String.format("Test1: O: %4d N: %20s Task: %10s Signal: %10s Time: %s",r.offset(),  s.nodeProcThreadId, s.taskName, s.signal, s.timestamp));
+                logger.info(String.format("Test1: O: %4d N: %20s TaskImpl: %10s Signal: %10s Time: %s",r.offset(),  s.nodeProcThreadId, s.taskName, s.signal, s.timestamp));
             } else {
                 logger.info(String.format("Test1: O: %4d J: %s",r.offset(),  r.value()));
 

@@ -5,4 +5,8 @@ package net.oneandone.kafka.clusteredjobs.api;
  */
 public interface Task {
 
+    TaskDefinition getDefinition();
+
+    StateEnum getLocalState();
+
 }

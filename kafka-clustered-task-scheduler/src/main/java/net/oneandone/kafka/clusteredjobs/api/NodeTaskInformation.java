@@ -4,8 +4,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-import net.oneandone.kafka.clusteredjobs.states.StateEnum;
-
 /**
  * @author aschoerk
  */
@@ -29,7 +27,7 @@ public interface NodeTaskInformation {
     Optional<Instant> getArrivalTime();
 
     /**
-     * Task-Runtime-Information
+     * TaskImpl-Runtime-Information
      */
     interface TaskInformation {
         /**
