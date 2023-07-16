@@ -69,7 +69,7 @@ public class SignalHandlerTest {
 
     @ParameterizedTest
     @CsvSource({
-            "INITIATING_I,ME,NEW,INITIATING,",
+            "INITIATING_I,ME,NEW,NEW,",
             "INITIATING_I,ME,CLAIMING,ERROR,",
             "INITIATING_I,ME,CLAIMED_BY_OTHER,ERROR,",
             "INITIATING_I,ME,HANDLING_BY_OTHER,ERROR,",

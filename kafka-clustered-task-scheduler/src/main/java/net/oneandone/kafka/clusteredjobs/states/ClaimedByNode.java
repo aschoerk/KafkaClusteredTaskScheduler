@@ -4,11 +4,14 @@ import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNHANDLING_I;
 
+import java.util.concurrent.Future;
+
 import org.apache.commons.lang3.mutable.MutableObject;
 
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
+import net.oneandone.kafka.clusteredjobs.StoppableBase;
 import net.oneandone.kafka.clusteredjobs.TaskImpl;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
@@ -63,8 +66,9 @@ public class ClaimedByNode extends StateHandlerBase {
                 task.setLocalState(StateEnum.HANDLING_BY_NODE);
                 getNode().getSender().sendSignal(task, HANDLING);
                 final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter++;
-                MutableObject<Thread> p = new MutableObject<>();
+                MutableObject<Future> p = new MutableObject<>();
                 p.setValue(getNode().newHandlerThread(() -> {
+                    Thread.currentThread().setName(threadName);
                     try {
                         task.getDefinition().getCode(getNode()).run();
                     } finally {
@@ -74,8 +78,6 @@ public class ClaimedByNode extends StateHandlerBase {
                         getNode().disposeHandlerThread(p.getValue());
                     }
                 }));
-                p.getValue().setName(threadName);
-                p.getValue().start();
                 getNode().getPendingHandler().scheduleInterupter(task, threadName, p.getValue());
                 break;
             case HEARTBEAT_I:

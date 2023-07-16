@@ -43,7 +43,7 @@ public class Test1 extends TestBase {
         while (count++ < cycleNum) {
             long currentExecutions = testTask.getExecutions();
             Thread.sleep(waitMillis );
-            logger.info("Test {} Loop {} Done: Executions of {}: {} Diff: {}",testName, Instant.now(), testTask.getName(),
+            logger.info("Test {} Loop {} Done: Executions of {}: {} Diff: {}",testName, count   , testTask.getName(),
                     testTask.getExecutions(), testTask.getExecutions() - currentExecutions);
             assertNotEquals(currentExecutions, testTask.getExecutions());
         }

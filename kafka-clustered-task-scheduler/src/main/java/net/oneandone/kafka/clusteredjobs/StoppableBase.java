@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 public abstract class StoppableBase implements Stoppable {
     private static AtomicInteger threadIx = new AtomicInteger();
     private ScheduledFuture<?> scheduledFuture = null;
-    private Logger logger = LoggerFactory.getLogger(StoppableBase.class);
+    private static Logger logger = LoggerFactory.getLogger(StoppableBase.class);
     private AtomicBoolean doShutdown = new AtomicBoolean(false);
     private boolean running = false;
 
@@ -43,7 +43,7 @@ public abstract class StoppableBase implements Stoppable {
      * initialize a threadname so that it is uniquely recognizable
      * @param name the base of the generated threadname.
      */
-    protected void initThreadName(final String name) {
+    public static void initThreadName(final String name) {
         String threadName = String.format("KCTM_%010d_%05d_%s_%5d",
                 Thread.currentThread().getContextClassLoader().hashCode(),
                 Thread.currentThread().getId(),

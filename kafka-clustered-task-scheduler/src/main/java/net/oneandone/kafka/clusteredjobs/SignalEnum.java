@@ -5,11 +5,6 @@ package net.oneandone.kafka.clusteredjobs;
  */
 public enum SignalEnum implements SignalInterface {
     /**
-     *  signal TaskImpl is initiated, who is able to execute it may try to claim it
-     *  if multiple node do initiating, check if parameters
-     */
-
-    /**
      * This node is prepared to CLAIM the task
      */
     CLAIMING,   //

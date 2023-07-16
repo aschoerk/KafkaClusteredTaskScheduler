@@ -2,6 +2,7 @@ package net.oneandone.kafka.clusteredjobs.states;
 
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.CLAIMED_BY_OTHER;
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.NEW;
 
 import java.util.Optional;
@@ -15,16 +16,18 @@ import net.oneandone.kafka.clusteredjobs.TaskImpl;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
- * @author aschoerk
+ * handler for the new-State. A Node/Task gets initially created in this state after starting the node or creating the task.
  */
 public class New extends StateHandlerBase {
     /**
-     * Create statemachine note for State NEW
+     * Create statemachine note for State NEW.
+     *
      * @param node the node running the statemachine
      */
-    public New(NodeImpl node) {
+    public New(final NodeImpl node) {
         super(node, StateEnum.NEW);
     }
+
     @Override
     protected void handleSignal(final TaskImpl task, final Signal s) {
         switch (s.getSignal()) {
@@ -33,7 +36,7 @@ public class New extends StateHandlerBase {
                 task.setLocalState(StateEnum.CLAIMED_BY_OTHER, s);
                 break;
             case UNCLAIMED:
-                super.unclaimed(task,s);
+                super.unclaimed(task, s);
                 break;
             case HEARTBEAT:
                 task.setLocalState(StateEnum.CLAIMED_BY_OTHER, s);
@@ -51,7 +54,7 @@ public class New extends StateHandlerBase {
 
         switch (s.getSignal()) {
             case INITIATING_I:
-                if (getNode().getNodeTaskInformationHandler() != null) {
+                if(getNode().getNodeTaskInformationHandler() != null) {
                     Optional<Pair<String, SignalEnum>> lastInformation = getNode().getNodeTaskInformationHandler().getUnknownTaskSignal(task.getDefinition().getName());
                     if(lastInformation.isPresent()) {
                         final Pair<String, SignalEnum> stringSignalEnumPair = lastInformation.get();
@@ -66,13 +69,14 @@ public class New extends StateHandlerBase {
                                 task.setLocalState(HANDLING_BY_OTHER, stringSignalEnumPair.getLeft());
                                 break;
                             default:
-                                task.setLocalState(NEW);
+                                task.setLocalState(INITIATING);
                         }
                     }
                     else {
                         task.setLocalState(NEW);
                     }
-                } else {
+                }
+                else {
                     task.setLocalState(NEW);
                 }
                 break;

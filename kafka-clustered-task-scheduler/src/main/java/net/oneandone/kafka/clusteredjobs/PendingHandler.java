@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -240,7 +241,7 @@ public class PendingHandler extends StoppableBase {
     }
 
     /**
-     * Schedule a unclaimed task to be checked for resurrection.
+     * Schedule an unclaimed task to be checked for resurrection.
      * @param task the task to be checked for HEARTBEAT signal received.
      */
     void scheduleTaskResurrection(final TaskImpl task) {
@@ -257,20 +258,20 @@ public class PendingHandler extends StoppableBase {
     }
 
     /**
-     * task has been started. Schedule a timer capable of sending an Interrupt to the thread after the maxTime
+     * task has been started. Schedule a timer capable of sending an Interrupt to the future after the maxTime
      * @param task the task started
-     * @param threadName the name of the thread executing the task. To be checked because it will change when the thread is reused.
-     * @param thread the thread to be interrupted.
+     * @param threadName the name of the future executing the task. To be checked because it will change when the future is reused.
+     * @param future the future to be interrupted.
      */
-    public void scheduleInterupter(final TaskImpl task, final String threadName, final Thread thread) {
+    public void scheduleInterupter(final TaskImpl task, final String threadName, final Future future) {
         Instant now = node.getNow();
         Instant nextCall = now.plus(task.getDefinition().getMaxDuration());
         final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_" + threadName, new Runnable() {
             @Override
             public void run() {
-                if (thread.isAlive() && thread.getName().equals(threadName) && !thread.isInterrupted()) {
-                    logger.info("N: {} T: {}/{} Interupting thread", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState());
-                    thread.interrupt();
+                if (!future.isDone() && !future.isCancelled()) {
+                    logger.info("N: {} T: {}/{} Interupting future", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState());
+                    future.cancel(true);
                 }
             }
         });

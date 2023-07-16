@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -40,7 +41,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     private static AtomicInteger nodeCounter = new AtomicInteger(0);
     private final NodeFactory nodeFactory;
 
-    private ArrayList<Stoppable> stoppables = new ArrayList<>();
+    private final ArrayList<Stoppable> stoppables = new ArrayList<>();
 
     private Clock clock = Clock.systemDefaultZone();
 
@@ -51,8 +52,8 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     private final String hostname;
     private final String processName;
-    private Thread signalsReceivingThread;
-    private Thread pendingHandlerThread;
+    private Future signalsReceivingThread;
+    private Future pendingHandlerThread;
     final String bootstrapServers;
 
     ConcurrentHashMap<String, TaskImpl> tasks = new ConcurrentHashMap<>();
@@ -62,7 +63,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     private volatile SignalHandler signalHandler;
     private volatile PendingHandler pendingHandler;
 
-    private Set<Thread> handlerThreads = new HashSet<>();
+    private Set<Future> handlerThreads = new HashSet<Future>();
     private Container container;
     private NodeHeartbeat nodeHeartbeat;
     private NodeTaskInformationHandler nodeTaskInformationHandler;
@@ -137,13 +138,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         }
 
         stoppables.add(getPendingHandler());
-        pendingHandlerThread = getContainer().createThread(() ->
+        pendingHandlerThread = getContainer().submitTask(() ->
                 {
                     getPendingHandler().run();
                     logger.info("stopped");
                 }
         );
-        pendingHandlerThread.start();
         setRunning();
         while (!threadsRunning()) {
             try {
@@ -163,13 +163,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
         signalsWatcher = nodeFactory.createSignalsWatcher(this);
         stoppables.add(signalsWatcher);
-        signalsReceivingThread = getContainer().createThread(() ->
+        signalsReceivingThread = getContainer().submitTask(() ->
                 {
                     signalsWatcher.run();
                     logger.info("stopped");
                 }
         );
-        signalsReceivingThread.start();
 
 
         synchronized (this) {
@@ -182,7 +181,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
                     logger.info("End of   wait for SignalWatcher Topic consumer init.");
                 }
             } catch (InterruptedException e) {
-                throw new KctmException("Interrupted Startup of SignalsWatchwr");
+                throw new KctmException("Interrupted Startup of SignalsWatcher");
             }
         }
         signalsWatcher.readOldSignals();
@@ -216,11 +215,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * provide function to create threads
+     *
      * @param runnable the runnable the thread should execute
-     * @return the thread for the runnablel
+     * @return the thread for the runnable
      */
-    public Thread newHandlerThread(final Runnable runnable) {
-        Thread result = getContainer().createThread((runnable));
+    public Future newHandlerThread(final Runnable runnable) {
+        Future result = getContainer().submitTask(runnable);
         handlerThreads.add(result);
         return result;
     }
@@ -229,8 +229,8 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
      * dispose a thread previously created by newHandlerThread
      * @param thread the thread to be disposed
      */
-    public void disposeHandlerThread(final Thread thread) {
-        assert handlerThreads.remove(thread);
+    public void disposeHandlerThread(final Future future) {
+        assert handlerThreads.remove(future);
     }
 
     /**
@@ -261,15 +261,15 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         } catch (InterruptedException e) {
             throw new KctmException("During shutdown interrupted", e);
         }
-        while (pendingHandlerThread.isAlive()) {
-            pendingHandlerThread.interrupt();
+        while (!pendingHandlerThread.isDone()) {
+            pendingHandlerThread.cancel(true);
         }
-        while (signalsReceivingThread.isAlive()) {
-            signalsReceivingThread.interrupt();
+        while (!signalsReceivingThread.isDone()) {
+            signalsReceivingThread.cancel(true);
         }
-        for (Thread t : handlerThreads) {
-            while (t.isAlive()) {
-                t.interrupt();
+        for (Future t : handlerThreads) {
+            while (!t.isDone()) {
+                t.cancel(true);
             }
         }
         getSender().getSyncProducer().close();
@@ -278,7 +278,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
 
     /**
-     * return sender capabable of sending tasks to the sync-topic
+     * return sender capable of sending tasks to the sync-topic
      * @return sender capabable of sending tasks to the sync-topic
      */
     public Sender getSender() {
@@ -358,7 +358,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
 
     /**
-     * get the object capable of handling initiatizing information for newly to be started node
+     * get the object capable of handling initializing information for newly to be started node
      * @return the object capable of handling initiatizing information for newly to be started node
      */
     public NodeTaskInformationHandler getNodeTaskInformationHandler() {

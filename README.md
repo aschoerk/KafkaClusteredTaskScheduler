@@ -6,11 +6,46 @@
 # Description 
 A fault-tolerant scheduler that allows scheduling of periodic tasks to a single node in a clustered environment, with the sole help of Kafka messaging system. No other persistence is necessary.
 
-KafkaNodeTaskScheduler is designed to provide exclusive execution on a single node by scheduling tasks to run on that node, ensuring that no other nodes execute the same task simultaneously. The scheduler is fault-tolerant, meaning that it can handle node failures and redistribute the failed node's tasks to other nodes in the cluster.
+KafkaClusteredTaskScheduler is designed to provide exclusive execution on a single node by scheduling tasks to run on that node, ensuring that no other nodes execute the same task simultaneously. The scheduler is fault-tolerant, meaning that it can handle node failures and redistribute the failed node's tasks to other nodes in the cluster.
 
-KafkaNodeTaskScheduler uses a single Kafka topic for messaging and coordination between the nodes. The topic serves as a centralized communication channel for the scheduler, allowing it to maintain a unified view of the state of the nodes and the tasks they are responsible for.
+KafkaClusteredTaskScheduler uses a single Kafka topic for messaging and coordination between the nodes. The topic serves as a centralized communication channel for the scheduler, allowing it to maintain a unified view of the state of the nodes and the tasks they are responsible for.
 
-With KafkaNodeTaskScheduler, you can easily schedule periodic tasks to run on a single node in a clustered environment, with fault tolerance and minimal persistence requirements.
+With KafkaClusteredTaskScheduler, you can easily schedule periodic tasks to run on a single node in a clustered environment, with fault tolerance and minimal persistence requirements.
+
+# Usage
+
+create a Container class, to embedd the scheduler into the POD, Server, ... 
+```java
+public class ContainerImpl implements Container {
+
+   
+    @Resource
+    TaskScheduler taskScheduler;
+    
+    private String syncTopicName = "Sync-Topic";
+    private String bootstrapServers = "https://kafka-cluster:1111/";
+
+    public TestContainer(final String syncTopicName, final String bootstrapServers) {
+        this.syncTopicName = syncTopicName;
+        this.bootstrapServers = bootstrapServers;
+    }
+
+    @Override
+    public String getSyncTopicName() {
+        return syncTopicName;
+    }
+
+    @Override
+    public String getBootstrapServers() {
+        return bootstrapServers;
+    }
+
+    @Override
+    public Thread createThread(Runnable runnable) {
+        return new Thread(runnable);
+    }
+}
+```
 
 ## Public Components
 

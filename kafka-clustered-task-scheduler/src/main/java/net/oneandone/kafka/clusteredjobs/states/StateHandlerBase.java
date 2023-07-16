@@ -97,7 +97,7 @@ public class StateHandlerBase {
     }
 
     /**
-     * handle signal unclaimed from other node. make sure the the offset of the signal is remembered for later.
+     * handle signal unclaimed from other node. make sure the offset of the signal is remembered for later.
      *
      * @param task the local task found for the signal
      * @param s    the signal coming from another node

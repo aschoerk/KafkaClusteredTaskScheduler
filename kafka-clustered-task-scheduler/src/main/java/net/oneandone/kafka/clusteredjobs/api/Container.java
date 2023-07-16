@@ -1,5 +1,7 @@
 package net.oneandone.kafka.clusteredjobs.api;
 
+import java.util.concurrent.Future;
+
 /**
  * Used to support container characteristics like Thread-Management.
  */
@@ -22,6 +24,6 @@ public interface Container {
      * @param runnable The runnable to execute when starting the thread
      * @return the thread created in the container environment
      */
-    Thread createThread(Runnable runnable);
+    Future submitTask(Runnable runnable);
 
 }

@@ -25,8 +25,7 @@ state "ERROR" as e <<Error>>
 
 [*] -down-> n: start/create Task on node
 
-n -> e: xxxxxx<b>_I</b>
-n -down-> i: <b>INITIATING_I</b> || after some time
+n -down-> i: <b>INITIATING_I</b> after some time\nwithout further information
 n -> co: <b>CLAIMED_O</b>, <b>CLAIMING_O</b>
 n -> ho: <b>HANDLING_O</b>
 n -> i: <b>UNCLAIM_O(offset)</b>

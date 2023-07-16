@@ -1,10 +1,12 @@
 package net.oneandone.kafka.clusteredjobs.states;
 
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
-import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
+
+import java.util.Objects;
 
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
+import net.oneandone.kafka.clusteredjobs.SignalEnum;
 import net.oneandone.kafka.clusteredjobs.TaskImpl;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
@@ -45,11 +47,10 @@ public class ClaimedByOther extends StateHandlerBase {
 
     @Override
     protected void handleOwnSignal(final TaskImpl task, final Signal s) {
-        switch (s.getSignal()) {
-            case CLAIMING:
-                break;
-            default:
-                super.handleOwnSignal(task,s);
+        if(Objects.requireNonNull(s.getSignal()) == SignalEnum.CLAIMING) {
+        }
+        else {
+            super.handleOwnSignal(task, s);
         }
     }
 

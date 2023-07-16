@@ -56,8 +56,8 @@ public interface NodeFactory {
      * create a new PendingEntry for the PendingHandler
      * @param timestamp the timestamp the runnable should be started
      * @param name the unique name of the pending entry. There can only be one Entry with a certain name be pending
-     * @param runnable the runnable to be executed when timestamp elapsd
-     * @return the new PendingENtry
+     * @param runnable the runnable to be executed when timestamp elapsed
+     * @return the new PendingEntry
      */
     PendingEntry createPendingEntry(Instant timestamp, String name, Runnable runnable);
 

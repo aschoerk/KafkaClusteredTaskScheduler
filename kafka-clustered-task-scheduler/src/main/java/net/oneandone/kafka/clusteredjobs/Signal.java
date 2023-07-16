@@ -188,7 +188,7 @@ public class Signal implements Comparable<Signal> {
 
     /**
      * check if signal is sent by a certain node
-     * @param node the node to be check the signal for
+     * @param node the node to be checked the signal for
      * @return true of th signal was sent by node.
      */
     public boolean equalNode(final Node node) {

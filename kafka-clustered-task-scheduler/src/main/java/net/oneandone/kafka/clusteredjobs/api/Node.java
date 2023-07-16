@@ -3,11 +3,11 @@ package net.oneandone.kafka.clusteredjobs.api;
 import java.time.Instant;
 
 /**
- * Describes a task executiing Node.
+ * Describes a task executing Node.
  */
 public interface Node {
     /**
-     * the clusterwide unique identifier of the node
+     * the cluster-wide unique identifier of the node
      * @return the clusterwide unique identifier of the node
      */
     String getUniqueNodeId();

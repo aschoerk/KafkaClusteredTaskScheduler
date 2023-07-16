@@ -1,7 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
 /**
- * A signal not sent to other nodes. Used to handle spontanous internal state-changes
+ * A signal not sent to other nodes. Used to handle spontaneous internal state-changes
  */
 class InternalSignal extends Signal {
     /**

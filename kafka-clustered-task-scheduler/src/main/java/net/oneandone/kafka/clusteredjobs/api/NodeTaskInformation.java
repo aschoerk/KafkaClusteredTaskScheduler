@@ -51,7 +51,7 @@ public interface NodeTaskInformation {
 
     /**
      * describe all registered Tasks
-     * @return the runtimeinformation of all registered tasks.
+     * @return the runtime-information of all registered tasks.
      */
     List<TaskInformation> getTaskInformation();
 }
