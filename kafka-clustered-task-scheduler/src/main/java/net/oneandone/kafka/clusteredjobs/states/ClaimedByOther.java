@@ -59,6 +59,9 @@ public class ClaimedByOther extends StateHandlerBase {
         switch (s.getSignal()) {
             case CLAIMING_I:
                 break;
+            case REVIVING:
+                doUnclaiming(task);
+                break;
             default:
                 super.handleInternal(task, s);
         }

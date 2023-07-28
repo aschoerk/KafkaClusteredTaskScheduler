@@ -10,6 +10,7 @@ import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_
 import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -208,11 +209,12 @@ public class SignalsWatcher extends StoppableBase {
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
                                 TaskImpl task = node.tasks.get(signal.taskName);
+                                node.lastSignalFromNode(signal.nodeProcThreadId, Instant.ofEpochMilli(r.timestamp()));
 
-                                if(task == null && signal.signal == SignalEnum.DOHEARTBEAT) {
+                                if(task == null && signal.signal == SignalEnum.DO_INFORMATION_SEND) {
                                     if (!signal.equalNode(node)) {
                                         logger.debug("Node: {} triggering NodeHeartBeat beause of DOHEARTBEAT", node.getUniqueNodeId());
-                                        node.getPendingHandler().scheduleNodeHeartBeat(node.getNodeHeartbeat().getCode(node), node.getNow());
+                                        node.getPendingHandler().scheduleInformationSender(node.getNow());
                                     }
                                 }
                                 else if(task != null) {
@@ -243,6 +245,7 @@ public class SignalsWatcher extends StoppableBase {
                                 nodeInformation.setArrivalTime(node.getNow());
                                 lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
                                 node.getNodeTaskInformationHandler().handle(nodeInformation);
+                                node.lastSignalFromNode(nodeInformation.getName(), Instant.ofEpochMilli(r.timestamp()));
                             }
                             else {
                                 throw new KctmException("Unexpected event of type: " + r.value() + " on synctopic");

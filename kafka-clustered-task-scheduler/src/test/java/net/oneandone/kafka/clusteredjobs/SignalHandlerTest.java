@@ -4,7 +4,6 @@ import static net.oneandone.kafka.clusteredjobs.api.StateEnum.ERROR;
 import static net.oneandone.kafka.clusteredjobs.support.TestTask.TestTaskBuilder.aTestTask;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.util.HashMap;
 import java.util.Optional;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -27,6 +26,11 @@ public class SignalHandlerTest {
                 @Override
                 public void sendSignal(final TaskImpl t, final SignalEnum signal) {
                     signalSent = signal;
+                }
+
+                @Override
+                public void sendSignal(final TaskImpl t, final SignalEnum signal, final Long reference) {
+                    sendSignal(t, signal);
                 }
             };
         }
@@ -140,7 +144,7 @@ public class SignalHandlerTest {
             "HANDLING,ME,HANDLING_BY_NODE,HANDLING_BY_NODE,",  // old handling message
             "UNCLAIMED,a,NEW,INITIATING,",  // opportunity
             "UNCLAIMED,a,INITIATING,INITIATING,",  // TODO:
-            "UNCLAIMED,a,CLAIMING,CLAIMING,", // TODO:
+            "UNCLAIMED,a,CLAIMING,INITIATING,", // TODO:
             "UNCLAIMED,a,CLAIMED_BY_OTHER,INITIATING,",  // ok
             "UNCLAIMED,a,HANDLING_BY_OTHER,INITIATING,",  // TODO: alive messages during handling-interval?? No!! use resurrection
             "UNCLAIMED,a,CLAIMED_BY_NODE,ERROR,",  // error in protocol, other node unclaims my task

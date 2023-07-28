@@ -24,6 +24,6 @@ public interface Container {
      * @param runnable The runnable to execute when starting the thread
      * @return the thread created in the container environment
      */
-    Future submitTask(Runnable runnable);
+    Future submitInThread(Runnable runnable);
 
 }

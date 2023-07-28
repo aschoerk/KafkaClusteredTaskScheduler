@@ -29,6 +29,11 @@
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>kafka-clustered-task-scheduler-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- pure test dependencies -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>

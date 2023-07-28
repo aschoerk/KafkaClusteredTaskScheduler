@@ -32,6 +32,7 @@ public class Initiating extends StateHandlerBase {
                 task.setLocalState(StateEnum.ERROR);
                 break;
             case UNCLAIMED:
+                unclaimed(task, s);
                 break;
             default:
                 super.handleSignal(task, s);

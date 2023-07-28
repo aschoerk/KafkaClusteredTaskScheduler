@@ -25,12 +25,7 @@ public interface NodeFactory {
      */
     SignalHandler createSignalHandler(NodeImpl node);
 
-    /**
-     * create a NodeHeartbeat Object
-     * @param period of the Heartbeat
-     * @return a new SignalHandler
-     */
-    NodeHeartbeat createNodeHeartbeat(Duration period);
+
 
     /**
      * create PendingHandler-Object

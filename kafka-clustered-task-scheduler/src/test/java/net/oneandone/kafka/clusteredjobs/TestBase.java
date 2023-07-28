@@ -1,5 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -38,7 +40,8 @@ public abstract class TestBase {
         return result;
     }
 
-    protected void outputSignals() {
+    protected int outputSignals() {
+        Instant startReading = Instant.now();
         ArrayList<ConsumerRecord<String, String>> records = new ArrayList<>();
         SignalsWatcher.iterateOldRecords(
                 TestResources.SYNC_TOPIC,
@@ -48,16 +51,23 @@ public abstract class TestBase {
                     records.add(r);
                 });
 
+        Instant endReading = Instant.now();
         records.sort((r1, r2) -> ((Long)r1.offset()).compareTo(r2.offset()));
+        logger.info("outputSignals needed {} millis for reading, {} millis for sorting", Duration.between(startReading, endReading).toMillis(),
+                Duration.between(endReading, Instant.now()).toMillis());
         records.forEach(r -> {
             if(r.value().contains("ignal")) {
                 Signal s = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
-                logger.info(String.format("Test1: O: %4d N: %20s TaskImpl: %10s Signal: %10s Time: %s",r.offset(),  s.nodeProcThreadId, s.taskName, s.signal, s.timestamp));
+                logger.info(String.format("TestUsecases: O: %4d TS: %10s, N: %20s TaskImpl: %10s Signal: %10s Time: %s Ref: %d",
+                        r.offset(),Instant.ofEpochMilli(r.timestamp()).toString(),
+                        s.nodeProcThreadId,
+                        s.taskName,
+                        s.signal, s.timestamp, s.getReference()));
             } else {
-                logger.info(String.format("Test1: O: %4d J: %s",r.offset(),  r.value()));
-
+                logger.info(String.format("TestUsecases: O: %4d TS: %10s, J: %s",r.offset(),Instant.ofEpochMilli(r.timestamp()).toString(),  r.value()));
             }
         });
+        return records.size();
     }
 
 

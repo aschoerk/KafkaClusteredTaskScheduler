@@ -43,4 +43,11 @@ public interface Node {
      * @return the current information about nodes and tasks this node knows about.
      */
     NodeTaskInformation getNodeInformation();
+
+    /**
+     * shutdown the node.
+     */
+    void shutdown();
+
+    void run();
 }

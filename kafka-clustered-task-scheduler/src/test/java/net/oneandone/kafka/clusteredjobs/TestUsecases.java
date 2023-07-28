@@ -25,7 +25,7 @@ import net.oneandone.kafka.clusteredjobs.support.TestTask;
 
 @ExtendWith(IocJUnit5Extension.class)
 @TestClasses({TestResources.class})
-public class Test1 extends TestBase {
+public class TestUsecases extends TestBase {
 
     public static final int nodeTaskCount = 10;
     @Inject
@@ -38,15 +38,51 @@ public class Test1 extends TestBase {
         return System.getProperty("doingRelease") != null;
     }
 
+    void cycle(String testName, TestTask testTask) throws InterruptedException {
+        cycle(testName, testTask, cycleNum, waitMillis, () -> {
+            outputSignals();
+        });
+    }
+
     void cycle(String testName, TestTask testTask, Runnable r) throws InterruptedException {
+        cycle(testName, testTask, cycleNum, waitMillis, r);
+    }
+
+    void cycle(String testName, TestTask testTask, int maxCycles, int millisToLetRun) throws InterruptedException {
+        cycle(testName, testTask, maxCycles, millisToLetRun, null);
+    }
+    void cycle(String testName, TestTask testTask, int maxCycles, long millisToLetRun, Runnable r) throws InterruptedException {
         int count = 0;
-        while (count++ < cycleNum) {
+        int signalNumber = 0;
+        while (count++ < maxCycles) {
             long currentExecutions = testTask.getExecutions();
-            Thread.sleep(waitMillis );
+            Thread.sleep(millisToLetRun);
             logger.info("Test {} Loop {} Done: Executions of {}: {} Diff: {}",testName, count   , testTask.getName(),
                     testTask.getExecutions(), testTask.getExecutions() - currentExecutions);
-            assertNotEquals(currentExecutions, testTask.getExecutions());
+            if (r != null) {
+                r.run();
+            }
+            int num = outputSignals();
+            assertNotEquals(signalNumber, num);
+            signalNumber = num;
         }
+
+    }
+
+    @Test
+    void testUsingTwoNodesWithoutTasks() throws InterruptedException {
+        if (runningDuringRelease()) {
+            return;
+        }
+        NodeImpl node1 = newNode();
+        NodeImpl node2 = newNode();
+        final TestTask taskDefinition = aTestTask().withName("notRegistered").build();
+        cycle("testUsingOneNode", taskDefinition, 5, NodeImpl.HEART_BEAT_PERIOD.multipliedBy(5).toMillis(), () -> {
+            assertTrue(taskDefinition.getInterrupted().get() == 0);
+        });
+        node1.shutdown();
+        node2.shutdown();
+        checkLogs();
     }
 
     @Test
@@ -57,8 +93,8 @@ public class Test1 extends TestBase {
         NodeImpl node1 = newNode();
         final TestTask taskDefinition = aTestTask().withName("TestTask").withMaxExecutionsOnNode(5L).withPeriod(Duration.ofMillis(500)).build();
         node1.register(taskDefinition);
-        cycle("testUsingOneNode", taskDefinition, () -> {
-
+        cycle("testUsingOneNode", taskDefinition, 5, 5000, () -> {
+            assertTrue(taskDefinition.getInterrupted().get() == 0);
         });
         node1.shutdown();
         checkLogs();
@@ -78,10 +114,11 @@ public class Test1 extends TestBase {
                 .build();
         NodeImpl node1 = newNode();
         TaskImpl task = node1.register(testTask);
-        cycle("tstMaxExecutionTime", testTask, () -> {
-            outputSignals();
+        cycle("tstMaxExecutionTime", testTask, 5, 5000, () -> {
             assertTrue(testTask.getInterrupted().get() > 0);
         });
+        node1.shutdown();
+        checkLogs();
     }
 
     @Test
@@ -99,9 +136,7 @@ public class Test1 extends TestBase {
         node1.register(testTask);
         NodeImpl node2 = newNode();
         node2.register(testTask);
-        cycle("testUsingTwoNodes",testTask, () -> {
-            outputSignals();
-        });
+        cycle("testUsingTwoNodes",testTask, 5, 10000);
         node1.shutdown();
         node2.shutdown();
         checkLogs();
@@ -121,7 +156,7 @@ public class Test1 extends TestBase {
         node2.getValue().register(heartBeat1);
         node2.getValue().register(heartBeat2);
         node2.getValue().run();
-        cycle("testUsingTwoNodesShuttingDown", heartBeat1,  () -> {
+        cycle("testUsingTwoNodesShuttingDown", heartBeat1,  5, 10000, () -> {
             node2.getValue().shutdown();
             node2.setValue(newNode());
             node2.getValue().register(heartBeat1);
@@ -176,8 +211,8 @@ public class Test1 extends TestBase {
     }
 
     private static void checkLogs() {
-        Assertions.assertEquals(0, InterceptingAppender.countErrors.get());
-        Assertions.assertEquals(0, InterceptingAppender.countWarnings.get());
+        Assertions.assertEquals(0, InterceptingAppender.countErrors.get(), "errors");
+        Assertions.assertEquals(0, InterceptingAppender.countWarnings.get(), "warnings");
         assertTrue(InterceptingAppender.countElse.get() > 0);
     }
 
@@ -210,6 +245,7 @@ public class Test1 extends TestBase {
             node2 = newNode();
             node2.register(taskDefinition);
             node2.run();
+            outputSignals();
         }
         checkLogs();
     }

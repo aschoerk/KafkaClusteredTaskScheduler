@@ -66,5 +66,5 @@ public interface TaskDefinition {
      * @param node the node-environment used to execute the code
      * @return the code to be executed
      */
-    Runnable getCode(Node node);
+    ClusterTask getClusterTask(Node node);
 }

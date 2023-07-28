@@ -1,7 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
 import static java.lang.management.ManagementFactory.getRuntimeMXBean;
-import static net.oneandone.kafka.clusteredjobs.SignalEnum.DOHEARTBEAT;
+import static net.oneandone.kafka.clusteredjobs.SignalEnum.DO_INFORMATION_SEND;
 
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
@@ -35,7 +36,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     static final long CONSUMER_POLL_TIME = 500L;
 
     static final Duration WAIT_IN_NEW_STATE = Duration.ofMillis(1000L);
-    private static final Duration HEART_BEAT_PERIOD = Duration.ofMillis(1000);
+    public static final Duration HEART_BEAT_PERIOD = Duration.ofMillis(1000);
     private static Logger logger = LoggerFactory.getLogger(NodeImpl.class);
 
     private static AtomicInteger nodeCounter = new AtomicInteger(0);
@@ -65,10 +66,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     private Set<Future> handlerThreads = new HashSet<Future>();
     private Container container;
-    private NodeHeartbeat nodeHeartbeat;
     private NodeTaskInformationHandler nodeTaskInformationHandler;
     private String lastNodeTaskInformation;
     private SignalsWatcher signalsWatcher;
+    Map<String, Instant> heartBeats = new ConcurrentHashMap<>();
+    private Instant startTime = Instant.now();
+    Instant lastMessageReceived;
 
     /**
      * create a Node instance capable of executing clustered periodic tasks
@@ -138,7 +141,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         }
 
         stoppables.add(getPendingHandler());
-        pendingHandlerThread = getContainer().submitTask(() ->
+        pendingHandlerThread = getContainer().submitInThread(() ->
                 {
                     getPendingHandler().run();
                     logger.info("stopped");
@@ -152,18 +155,13 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
                 throw new KctmException("Interrupted while waiting for node startup", e);
             }
         }
-        this.nodeHeartbeat = nodeFactory.createNodeHeartbeat(HEART_BEAT_PERIOD);
-        getPendingHandler().schedulePending(
-                nodeFactory.createPendingEntry(
-                        getNow().plus(Duration.ofMillis(1000L)),
-                        "doHeartBeat" + getUniqueNodeId(),
-                        () -> NodeImpl.this.getSender().sendSignal(null, DOHEARTBEAT)));
 
-
+        // initiate sending of information from other nodes.
+        NodeImpl.this.getSender().sendSignal(null, DO_INFORMATION_SEND);
 
         signalsWatcher = nodeFactory.createSignalsWatcher(this);
         stoppables.add(signalsWatcher);
-        signalsReceivingThread = getContainer().submitTask(() ->
+        signalsReceivingThread = getContainer().submitInThread(() ->
                 {
                     signalsWatcher.run();
                     logger.info("stopped");
@@ -176,7 +174,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
                 if (signalsWatcher.getWatcherStarting() == null) {
                     logger.info("Going to wait for SignalWatcher Topic consumer init.");
                     do {
-                        this.wait();
+                            this.wait();
                     } while(signalsWatcher.getWatcherStarting() == null);
                     logger.info("End of   wait for SignalWatcher Topic consumer init.");
                 }
@@ -185,6 +183,8 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
             }
         }
         signalsWatcher.readOldSignals();
+        pendingHandler.scheduleTaskReviver();
+        pendingHandler.scheduleNodeHeartBeat(Instant.now().plus(HEART_BEAT_PERIOD));
     }
 
     /**
@@ -220,7 +220,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
      * @return the thread for the runnable
      */
     public Future newHandlerThread(final Runnable runnable) {
-        Future result = getContainer().submitTask(runnable);
+        Future result = getContainer().submitInThread(runnable);
         handlerThreads.add(result);
         return result;
     }
@@ -323,12 +323,6 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         return pendingHandler;
     }
 
-    NodeHeartbeat getNodeHeartbeat() {
-        return nodeHeartbeat;
-    }
-
-
-
     /**
      * change clock used for timestamps. be aware, that calculated durations are awaited by the wait-function of
      * Thread and Object
@@ -367,5 +361,16 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     SignalsWatcher getSignalsWatcher() {
         return signalsWatcher;
+    }
+
+    public void lastSignalFromNode(final String nodeProcThreadId, final Instant timestamp) {
+        if (this.lastMessageReceived == null || this.lastMessageReceived.isBefore(timestamp)) {
+            this.lastMessageReceived = timestamp;
+        };
+        this.heartBeats.put(nodeProcThreadId, timestamp);
+    }
+
+    public Instant getStartTime() {
+        return startTime;
     }
 }

@@ -1,9 +1,11 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.CLAIMING_I;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING_I;
-import static net.oneandone.kafka.clusteredjobs.SignalEnum.RESURRECTING;
+import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT_I;
+import static net.oneandone.kafka.clusteredjobs.SignalEnum.REVIVING;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.CLAIMED_BY_OTHER;
+import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.NEW;
 
@@ -12,6 +14,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -36,21 +39,34 @@ public class PendingHandler extends StoppableBase {
     private final Random random = new Random();
     private int defaultWaitMillis = 10000;
 
-    public void setDefaultWaitMillis(final int defaultWaitMillisP) {
-        this.defaultWaitMillis = defaultWaitMillisP;
-    }
-
     /**
      * create the single PendingHandler for a node
+     *
      * @param node the node the PendingHandler is created for
      */
     public PendingHandler(final NodeImpl node) {
         this.node = node;
     }
 
+    private static String heartbeatSignallerIdentifier(final TaskImpl task) {
+        return task.getDefinition().getName() + "_" + "ClaimedSignaler";
+    }
+
+    private static String resurrectionIdentifier(final TaskImpl task) {
+        return task.getDefinition().getName() + "_Resurrection";
+    }
+
+    private static String taskStarterIdentifier(final TaskImpl task) {
+        return task.getDefinition().getName() + "_" + "TaskStarter";
+    }
+
+    public void setDefaultWaitMillis(final int defaultWaitMillisP) {
+        this.defaultWaitMillis = defaultWaitMillisP;
+    }
 
     /**
      * <b>The</b> scheduling function
+     *
      * @param e the pendingEntry to be scheduled
      */
     public void schedulePending(final PendingEntry e) {
@@ -65,11 +81,11 @@ public class PendingHandler extends StoppableBase {
         }
     }
 
-
     /**
      * Remove a pendingEntry, if enfore is true log an error if it is gnerally found but no entry is currently scheduled
+     *
      * @param pendingName the identifier of the entry to be removed
-     * @param enforce if true log an error if it is gnerally found but no entry is currently scheduled
+     * @param enforce     if true log an error if it is gnerally found but no entry is currently scheduled
      */
     private void removePending(final String pendingName, boolean enforce) {
         logger.info("Removing pending {}", pendingName);
@@ -77,7 +93,7 @@ public class PendingHandler extends StoppableBase {
         pendingByIdentifier.remove(pendingName);
         if(e != null) {
             boolean result = sortedPending.remove(e);
-            if (!result && enforce) {
+            if(!result && enforce) {
                 logger.error("Could not remove pending {} ", e.getIdentifier());
             }
         }
@@ -108,16 +124,18 @@ public class PendingHandler extends StoppableBase {
             try {
                 final long toWaitTime = toWait.toMillis();
                 logger.info("Waiting for notify or {} milliseconds", toWaitTime);
-                if (toWaitTime > 0) {
+                if(toWaitTime > 0) {
                     synchronized (this) {
                         this.wait(toWait.toMillis());
                     }
                 }
             } catch (InterruptedException e) {
-                if (!doShutdown())
+                if(!doShutdown()) {
                     logger.error("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
-                else
+                }
+                else {
                     logger.info("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
+                }
             }
         }
     }
@@ -149,6 +167,7 @@ public class PendingHandler extends StoppableBase {
 
     /**
      * used to schedule the HEARTBEAT-Signal for claimed (not executing) tasks
+     *
      * @param task the task currently claimed, for which the HEARTBEAT signal is to be generated.
      */
     public void scheduleTaskHeartbeatOnNode(TaskImpl task) {
@@ -165,19 +184,40 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
-
     /**
      * Schdule the periodic Message communicating the current state of the node
-     * @param runnable the sending method
+     *
      * @param nextCall the timestamp when to do the next call.
      */
-    public void scheduleNodeHeartBeat(final Runnable runnable, final Instant nextCall) {
-        final PendingEntry e = new PendingEntry(nextCall, "NodeHeartbeat", runnable);
+    public void scheduleInformationSender(final Instant nextCall) {
+        final PendingEntry e = new PendingEntry(nextCall, "NodeHeartbeat", () -> {
+            NodeImpl nodeImpl = (NodeImpl) node;
+            nodeImpl.sendNodeTaskInformation(true);
+        });
         schedulePending(e);
     }
 
     /**
+     * Schedule the periodic Message communicating that node is alive, if nothing else was sent meanwhile
+     *
+     * @param nextCall the timestamp when to do the next call.
+     */
+    public void scheduleNodeHeartBeat(final Instant nextCall) {
+        final PendingEntry e = new PendingEntry(nextCall, "NodeHeartbeat", () -> {
+            NodeImpl nodeImpl = (NodeImpl) node;
+            if (nodeImpl.getSender().lastSendTimestamp.isBefore(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD))) {
+                nodeImpl.getSender().sendSignal(null, SignalEnum.NODEHEARTBEAT);
+            }
+            nodeImpl.getPendingHandler()
+                    .scheduleNodeHeartBeat(node.getNow().plus(nodeImpl.HEART_BEAT_PERIOD));
+        });
+        schedulePending(e);
+    }
+
+
+    /**
      * wait for duration, after that switch state from NEW to INITIATING
+     *
      * @param duration max time to leave a task in state NEW
      */
     public void scheduleWaitForNewSwitch(Duration duration) {
@@ -186,7 +226,7 @@ public class PendingHandler extends StoppableBase {
                 () -> {
                     logger.info("Node: {} switch of NEW Tasks", node.getUniqueNodeId());
                     node.tasks.values().forEach(t -> {
-                        if (t.getLocalState() == NEW) {
+                        if(t.getLocalState() == NEW) {
                             logger.info("Node: {} initiating task {}/{} in state NEW after second nodeheartbeat arrived from me",
                                     node.getUniqueNodeId(), t.getDefinition().getName(), t.getLocalState());
                             t.setLocalState(INITIATING);
@@ -199,11 +239,12 @@ public class PendingHandler extends StoppableBase {
 
     /**
      * Schedule a random waiting time before trying to claim a task
+     *
      * @param task the task, currently in INITIATING state for which to wait before CLAIMING.
      */
     public void scheduleTaskForClaiming(final TaskImpl task) {
         final int bound = (int) task.getDefinition().getPeriod().toMillis();
-        long toWait = random.nextInt(bound);
+        long toWait = bound + random.nextInt(bound);
 
         Instant nextCall = node.getNow().plus(Duration.ofMillis(toWait));
         final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_ClaimingStarter", new Runnable() {
@@ -215,20 +256,21 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
-
     /**
      * schedule the time until a claimed task is to be handled.
+     *
      * @param task the claimed task to be started
      */
     public void scheduleTaskHandlingOnNode(TaskImpl task) {
         Instant initialTs = task.getDefinition().getInitialTimestamp();
         Instant nextCall;
-        if (initialTs != null) {
+        if(initialTs != null) {
             Instant now = node.getNow();
             Duration diff = Duration.between(initialTs, now);
             long number = diff.dividedBy(task.getDefinition().getPeriod());
             nextCall = initialTs.plus(task.getDefinition().getPeriod().multipliedBy(number + 1));
-        } else {
+        }
+        else {
             nextCall = node.getNow().plus(task.getDefinition().getPeriod());
         }
         final PendingEntry e = new PendingEntry(nextCall, taskStarterIdentifier(task), new Runnable() {
@@ -240,28 +282,44 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
-    /**
-     * Schedule an unclaimed task to be checked for resurrection.
-     * @param task the task to be checked for HEARTBEAT signal received.
-     */
-    void scheduleTaskResurrection(final TaskImpl task) {
-        Instant now = node.getNow();
-        Duration diff = Duration.between(task.getLastClaimedInfo(), now);
-        Instant nextCall = task.getLastClaimedInfo().plus(task.getDefinition().getClaimedSignalPeriod().multipliedBy(3));
-        final PendingEntry e = new PendingEntry(nextCall, resurrectionIdentifier(task), new Runnable() {
-            @Override
-            public void run() {
-                node.getSignalHandler().handleInternalSignal(task, RESURRECTING);
+    void scheduleTaskReviver() {
+        final PendingEntry e = new PendingEntry(Instant.now().plus(Duration.ofSeconds(5)), "TaskReviver" + node.getUniqueNodeId(), () -> {
+            logger.info("N: {} TaskReviver started", node.getUniqueNodeId());
+            if (node.lastMessageReceived != null && node.lastMessageReceived.isAfter(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD))) {
+                node.getNodeInformation().getTaskInformation().forEach(ti -> {
+                    TaskImpl taskimpl = node.tasks.get(ti.getTaskName());
+                    if(ti.getState().equals(CLAIMED_BY_OTHER) || ti.getState().equals(HANDLING_BY_OTHER)) {
+                        final String owningNodeName = ti.getNodeName().get();
+                        if(node.heartBeats.containsKey(owningNodeName)) {
+                            if(node.heartBeats.get(owningNodeName)
+                                    .isBefore(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD.multipliedBy(10)))) {
+                                logger.info("N: {} Reviving {} supposed to run on {}", node.getUniqueNodeId(), ti.getTaskName(), owningNodeName);
+                                node.getSignalHandler().handleInternalSignal(taskimpl, REVIVING);
+                                logger.info("last signal from {} was: {}", owningNodeName, node.heartBeats.get(owningNodeName));
+                            }
+                        }
+                        else {
+                            if(node.getStartTime().isBefore(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD.multipliedBy(3)))) {
+                                logger.info("N: {} Reviving {} supposed to run on {}", node.getUniqueNodeId(), ti.getTaskName(), owningNodeName);
+                                logger.info("no signal from {} since: {}", owningNodeName, node.getStartTime());
+                                node.getSignalHandler().handleInternalSignal(taskimpl, REVIVING);
+                            }
+                        }
+                    }
+                });
             }
+            scheduleTaskReviver();
         });
         schedulePending(e);
     }
 
+
     /**
      * task has been started. Schedule a timer capable of sending an Interrupt to the future after the maxTime
-     * @param task the task started
+     *
+     * @param task       the task started
      * @param threadName the name of the future executing the task. To be checked because it will change when the future is reused.
-     * @param future the future to be interrupted.
+     * @param future     the future to be interrupted.
      */
     public void scheduleInterupter(final TaskImpl task, final String threadName, final Future future) {
         Instant now = node.getNow();
@@ -269,7 +327,7 @@ public class PendingHandler extends StoppableBase {
         final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_" + threadName, new Runnable() {
             @Override
             public void run() {
-                if (!future.isDone() && !future.isCancelled()) {
+                if(!future.isDone() && !future.isCancelled()) {
                     logger.info("N: {} T: {}/{} Interupting future", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState());
                     future.cancel(true);
                 }
@@ -280,41 +338,30 @@ public class PendingHandler extends StoppableBase {
 
     /**
      * remove scheduled claimed-heartbeat generation
+     *
      * @param t the task for which the claimed-heartbeat is supposed to be scheduled
      */
     public void removeClaimedHeartbeat(final TaskImpl t) {
-        removePending(heartbeatSignallerIdentifier(t),false);
+        removePending(heartbeatSignallerIdentifier(t), false);
     }
 
     /**
      * remove check for TaskResurrection.
+     *
      * @param t the task claimed by another node, to be checked if heart-beats arrived in time
      */
     public void removeTaskResurrection(final TaskImpl t) {
-        removePending(resurrectionIdentifier(t),true);
+        removePending(resurrectionIdentifier(t), true);
     }
-
 
     /**
      * remove the scheduled starting of a task
+     *
      * @param t the task having been scheduled for starting
      */
     public void removeTaskStarter(final TaskImpl t) {
         removePending(taskStarterIdentifier(t), false);
     }
-
-    private static String heartbeatSignallerIdentifier(final TaskImpl task) {
-        return task.getDefinition().getName() + "_" + "ClaimedSignaler";
-    }
-
-    private static String resurrectionIdentifier(final TaskImpl task) {
-        return task.getDefinition().getName() + "_Resurrection";
-    }
-
-    private static String taskStarterIdentifier(final TaskImpl task) {
-        return task.getDefinition().getName() + "_" + "TaskStarter";
-    }
-
 
 
 }

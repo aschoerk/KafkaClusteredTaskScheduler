@@ -1,7 +1,6 @@
 package net.oneandone.kafka.clusteredjobs.states;
 
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
-import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
 
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
@@ -58,6 +57,9 @@ public class HandlingByOther extends StateHandlerBase {
     protected void handleInternal(final TaskImpl task, final Signal s) {
         switch (s.getSignal()) {
             case CLAIMING_I:
+                break;
+            case REVIVING:
+                doUnclaiming(task);
                 break;
             default:
                 super.handleInternal(task, s);

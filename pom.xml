@@ -29,6 +29,7 @@
     </developers>
 
     <modules>
+        <module>kafka-clustered-task-scheduler-api</module>
         <module>kafka-clustered-task-scheduler</module>
     </modules>
 

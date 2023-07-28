@@ -21,11 +21,6 @@ public class NodeFactoryImpl implements NodeFactory {
     }
 
     @Override
-    public NodeHeartbeat createNodeHeartbeat(final Duration period) {
-        return new NodeHeartbeat(period);
-    }
-
-    @Override
     public PendingHandler createPendingHandler(final NodeImpl node) {
         return new PendingHandler(node);
     }

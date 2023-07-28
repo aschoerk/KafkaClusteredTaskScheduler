@@ -11,7 +11,6 @@ import org.apache.commons.lang3.mutable.MutableObject;
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
-import net.oneandone.kafka.clusteredjobs.StoppableBase;
 import net.oneandone.kafka.clusteredjobs.TaskImpl;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
@@ -59,7 +58,7 @@ public class ClaimedByNode extends StateHandlerBase {
     protected void handleInternal(final TaskImpl task, final Signal s) {
         switch(s.getSignal()) {
             case UNCLAIM_I:
-                startUnclaiming(task);
+                doUnclaiming(task);
                 break;
             case HANDLING_I:
                 getNode().getPendingHandler().removeClaimedHeartbeat(task); // claim could get lost when running job
@@ -70,7 +69,7 @@ public class ClaimedByNode extends StateHandlerBase {
                 p.setValue(getNode().newHandlerThread(() -> {
                     Thread.currentThread().setName(threadName);
                     try {
-                        task.getDefinition().getCode(getNode()).run();
+                        task.getDefinition().getClusterTask(getNode()).call();
                     } finally {
                         if(task.getLocalState() == StateEnum.HANDLING_BY_NODE) {
                             getNode().getSignalHandler().handleInternalSignal(task, UNHANDLING_I);

@@ -1,7 +1,5 @@
 package net.oneandone.kafka.clusteredjobs.api;
 
-import net.oneandone.kafka.clusteredjobs.NodeImpl;
-
 /**
  * The state of a TaskImpl on a node
  */

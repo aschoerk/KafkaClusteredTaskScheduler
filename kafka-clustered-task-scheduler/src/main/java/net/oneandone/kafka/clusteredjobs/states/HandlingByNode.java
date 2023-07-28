@@ -51,7 +51,7 @@ public class HandlingByNode extends StateHandlerBase {
     @Override
     protected void handleInternal(final TaskImpl taskImpl, final Signal s) {
         if (s.getSignal() == UNCLAIM_I) {
-            startUnclaiming(taskImpl);
+            doUnclaiming(taskImpl);
         } else if(s.getSignal() == SignalEnum.UNHANDLING_I) {
             if(taskImpl.getDefinition().getMaxExecutionsOnNode() == null || taskImpl.getExecutionsOnNode() < taskImpl.getDefinition().getMaxExecutionsOnNode()) {
                 taskImpl.setLocalState(StateEnum.CLAIMED_BY_NODE);
@@ -61,7 +61,7 @@ public class HandlingByNode extends StateHandlerBase {
             }
             else {
                 taskImpl.clearExecutionsOnNode();
-                startUnclaiming(taskImpl);
+                doUnclaiming(taskImpl);
             }
         }
         else {

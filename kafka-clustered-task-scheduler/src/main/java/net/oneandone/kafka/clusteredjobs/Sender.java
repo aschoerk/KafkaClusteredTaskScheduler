@@ -1,5 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +21,7 @@ public class Sender extends StoppableBase {
     private final String syncTopic;
     private KafkaProducer syncProducer;
     private Map<String, Object> config;
+    Instant lastSendTimestamp = Instant.now();
 
     /**
      * create the SignalSender for this node
@@ -69,6 +71,7 @@ public class Sender extends StoppableBase {
         toSend.nodeProcThreadId = node.getUniqueNodeId();
         toSend.signal = signal;
         toSend.timestamp = node.getNow();
+        this.lastSendTimestamp = node.getNow();
         toSend.reference = reference;
         if (!doShutdown()) {
             getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(),

@@ -39,7 +39,7 @@ public class TestContainer implements Container {
     }
 
     @Override
-    public Future submitTask(Runnable runnable) {
+    public Future submitInThread(Runnable runnable) {
         return executorService.submit(runnable);
     }
 }

@@ -34,6 +34,7 @@ public class Claiming extends StateHandlerBase {
                 task.setLocalState(ERROR);
                 break;
             case UNCLAIMED:
+                unclaimed(task, s);
                 break;
             default:
                 super.handleSignal(task, s);
@@ -46,7 +47,8 @@ public class Claiming extends StateHandlerBase {
             case CLAIMING:
                 if (Objects.equals(s.getReference(), task.getUnclaimedSignalOffset())) {
                     task.setLocalState(CLAIMED_BY_NODE);
-                    getNode().getSender().sendSignal(task, CLAIMED);
+                    getNode().getSender().sendSignal(task, CLAIMED, task.getUnclaimedSignalOffset());
+                    task.getDefinition().getClusterTask(getNode()).startup();
                     getNode().getPendingHandler().scheduleTaskHandlingOnNode(task);
                     getNode().getPendingHandler().scheduleTaskHeartbeatOnNode(task);
                 }

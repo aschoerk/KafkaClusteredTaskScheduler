@@ -6,13 +6,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.oneandone.kafka.clusteredjobs.KctmException;
+import net.oneandone.kafka.clusteredjobs.ClusterTaskImpl;
+import net.oneandone.kafka.clusteredjobs.api.ClusterTask;
 import net.oneandone.kafka.clusteredjobs.api.Node;
 import net.oneandone.kafka.clusteredjobs.api.TaskDefaults;
 
@@ -20,7 +20,7 @@ import net.oneandone.kafka.clusteredjobs.api.TaskDefaults;
  * @author aschoerk
  */
 public class TestTask extends TaskDefaults {
-    static Logger logger = LoggerFactory.getLogger("HeartBeatTestTask");
+    static Logger logger = LoggerFactory.getLogger(TestTask.class);
 
     static Map<String, AtomicLong> interruptedMap = Collections.synchronizedMap(new HashMap<>());
 
@@ -31,6 +31,9 @@ public class TestTask extends TaskDefaults {
     private Duration handlingDuration = period.dividedBy(5);
 
     private AtomicLong executions = new AtomicLong(0L);
+
+    private AtomicLong startups = new AtomicLong(0L);
+    private AtomicLong shutdowns = new AtomicLong(0L);
 
     private TestTask() {
     }
@@ -84,14 +87,17 @@ public class TestTask extends TaskDefaults {
     }
 
     @Override
-    public Runnable getCode(final Node node) {
-        return () -> {
+    public ClusterTask getClusterTask(final Node node) {
+        return new ClusterTaskImpl(() -> {
+            final String uniqueNodeId = node.getUniqueNodeId();
+            logger.info("Testtask on {} calls startup no: {}", uniqueNodeId, startups.incrementAndGet());
+        }, () -> {
             executions.incrementAndGet();
             final String uniqueNodeId = node.getUniqueNodeId();
             if(!getRunning().compareAndSet(false, true)) {
                     logger.error("Testtask on {} started a second time", uniqueNodeId);
             }
-            logger.info("starting Testtask on {}", uniqueNodeId);
+            logger.info("starting Testtask on {} no: {}", uniqueNodeId, executions.get());
             try {
                 Thread.sleep(this.getHandlingDuration().toMillis());
             } catch (InterruptedException e) {
@@ -102,7 +108,10 @@ public class TestTask extends TaskDefaults {
                 logger.error("Testtask on {} ended  a second time", uniqueNodeId);
             }
 
-        };
+        }, () -> {
+            final String uniqueNodeId = node.getUniqueNodeId();
+            logger.info("Testtask on {} calls shutdown no: {}", uniqueNodeId, shutdowns.incrementAndGet());
+        });
     }
 
 

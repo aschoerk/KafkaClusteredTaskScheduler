@@ -42,6 +42,9 @@ public class StateHandlerBase {
     protected static void claiming(final TaskImpl task, final Signal s) {
         if(Objects.equals(s.getReference(),task.getUnclaimedSignalOffset())) {
             task.setLocalState(CLAIMED_BY_OTHER, s);
+        } else {
+            logger.info("Not setting claimed by other doing claiming because of reference in signal {} differs from unclaimedSignalOffset {}"
+                    , s.getReference(), task.getUnclaimedSignalOffset());
         }
     }
 
@@ -53,8 +56,9 @@ public class StateHandlerBase {
      * @param message additional information concerning the current processing
      */
     protected void info(TaskImpl task, Signal s, String message) {
-        logger.info("N: {} T: {}/{}  S: {}/{}/{} {}", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState(),
-                s.getNodeProcThreadId(), s.getSignal(), s.getCurrentOffset().orElse(-1L), message);
+        logger.info("N: {} T: {}/{}/{}/{}  S: {}/{}/{}/{} {}", node.getUniqueNodeId(), task.getDefinition().getName(),
+                task.getLocalState(),task.getCurrentExecutor().orElse(""), task.getUnclaimedSignalOffset(),
+                s.getNodeProcThreadId(), s.getSignal(), s.getCurrentOffset().orElse(-1L),s.getReference(), message);
     }
 
     /**
@@ -65,8 +69,9 @@ public class StateHandlerBase {
      * @param message additional information concerning the current processing
      */
     protected void error(TaskImpl task, Signal s, String message) {
-        logger.error("N: {} T: {}/{}  S: {}/{}/{} {}", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState(),
-                s.getNodeProcThreadId(), s.getSignal(), s.getCurrentOffset().orElse(-1L), message);
+        logger.error("N: {} T: {}/{}/{}  S: {}/{}/{}/{} {}", node.getUniqueNodeId(), task.getDefinition().getName(),
+                task.getLocalState(),task.getUnclaimedSignalOffset(),
+                s.getNodeProcThreadId(), s.getSignal(), s.getCurrentOffset().orElse(-1L),s.getReference(), message);
         task.setLocalState(ERROR);
     }
 
@@ -106,7 +111,6 @@ public class StateHandlerBase {
         task.setUnclaimedSignalOffset(s.getCurrentOffset().orElse(-1L));
         task.setLocalState(INITIATING);
         node.getPendingHandler().scheduleTaskForClaiming(task);
-        node.getPendingHandler().removeTaskResurrection(task);
     }
 
     /**
@@ -127,6 +131,12 @@ public class StateHandlerBase {
      * @param s    the signal from this node that arrived
      */
     protected void handleOwnSignal(final TaskImpl task, final Signal s) {
+        if ((s.getSignal() == SignalEnum.CLAIMED) || (s.getSignal() == SignalEnum.CLAIMING)) {
+            if (!Objects.equals(s.getReference(), task.getUnclaimedSignalOffset())) {
+                info(task, s, "coming late in this own state");
+                return;
+            }
+        }
         error(task, s, "did not expect this own signal in this state");
     }
 
@@ -171,7 +181,8 @@ public class StateHandlerBase {
      *
      * @param task the task for which the state is to be set to UNCLAIMING
      */
-    protected void startUnclaiming(final TaskImpl task) {
+    protected void doUnclaiming(final TaskImpl task) {
+        task.getDefinition().getClusterTask(getNode()).shutdown();
         getNode().getPendingHandler().removeTaskStarter(task);
         getNode().getPendingHandler().removeClaimedHeartbeat(task);
         task.setLocalState(UNCLAIMING);

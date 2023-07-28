@@ -28,7 +28,13 @@ public enum SignalEnum implements SignalInterface {
     /**
      * used to provoke sending of NodeInformation
      */
-    DOHEARTBEAT,
+    DO_INFORMATION_SEND,
+
+    /**
+     * make sure node informs that it is alive in minimal time-intervals
+     */
+    NODEHEARTBEAT,
+
 
     /**
      * initiating a new task
@@ -79,7 +85,7 @@ public enum SignalEnum implements SignalInterface {
     /**
      * indicate starting to resurrect a task
      */
-    RESURRECTING {
+    REVIVING {
         public boolean isInternal() { return true; }
 
     };
