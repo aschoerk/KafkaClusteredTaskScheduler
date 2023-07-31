@@ -9,8 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.oneandone.kafka.clusteredjobs.api.Node;
-import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
+import net.oneandone.kafka.clusteredjobs.api.TaskDefinition;
 
 /**
  * @author aschoerk
@@ -31,7 +31,7 @@ public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
 
     String currentExecutor;
 
-    private net.oneandone.kafka.clusteredjobs.api.Node node;
+    private final net.oneandone.kafka.clusteredjobs.api.Node node;
 
     int executionsOnNode = 0;
 
@@ -45,6 +45,7 @@ public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
      * return the current state of the task on the node
      * @return the current state of the task on the node
      */
+    @Override
     public StateEnum getLocalState() {
         return localState;
     }
@@ -55,7 +56,7 @@ public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
      * @param s the signal initiating the statechange
      */
     public void setLocalState(final StateEnum stateToSet, Signal s) {
-        setLocalState(stateToSet, s.nodeProcThreadId);
+        setLocalState(stateToSet, s.getNodeProcThreadId());
     }
 
     /**
@@ -68,7 +69,7 @@ public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
             logger.info("N: {} T: {} Setting State: {} from state: {} because of node: {}", node.getUniqueNodeId(),
                     taskDefinition.getName(), stateToSet, localState, this.getCurrentExecutor().orElse("null"));
         }
-        if (stateToSet == HANDLING_BY_OTHER || stateToSet == StateEnum.CLAIMED_BY_OTHER) {
+        if ((stateToSet == HANDLING_BY_OTHER) || (stateToSet == StateEnum.CLAIMED_BY_OTHER)) {
             currentExecutor = nodeName;
             executionsOnNode = 0;
             sawClaimedInfo();
@@ -153,6 +154,7 @@ public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
      * return the fixed properties of the task
      * @return the fixed properties of the task
      */
+    @Override
     public TaskDefinition getDefinition() {
         return taskDefinition;
     }

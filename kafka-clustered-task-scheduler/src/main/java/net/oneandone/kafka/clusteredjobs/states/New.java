@@ -5,6 +5,7 @@ import static net.oneandone.kafka.clusteredjobs.api.StateEnum.HANDLING_BY_OTHER;
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.INITIATING;
 import static net.oneandone.kafka.clusteredjobs.api.StateEnum.NEW;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -52,36 +53,35 @@ public class New extends StateHandlerBase {
     @Override
     protected void handleInternal(final TaskImpl task, final Signal s) {
 
-        switch (s.getSignal()) {
-            case INITIATING_I:
-                if(getNode().getNodeTaskInformationHandler() != null) {
-                    Optional<Pair<String, SignalEnum>> lastInformation = getNode().getNodeTaskInformationHandler().getUnknownTaskSignal(task.getDefinition().getName());
-                    if(lastInformation.isPresent()) {
-                        final Pair<String, SignalEnum> stringSignalEnumPair = lastInformation.get();
-                        logger.info("Found information for new task {} INITIATING_I signal: {} node: {} ",
-                                task, stringSignalEnumPair.getRight(), stringSignalEnumPair.getLeft());
-                        switch (stringSignalEnumPair.getRight()) {
-                            case CLAIMED:
-                            case HEARTBEAT:
-                                task.setLocalState(CLAIMED_BY_OTHER, stringSignalEnumPair.getLeft());
-                                break;
-                            case HANDLING:
-                                task.setLocalState(HANDLING_BY_OTHER, stringSignalEnumPair.getLeft());
-                                break;
-                            default:
-                                task.setLocalState(INITIATING);
-                        }
-                    }
-                    else {
-                        task.setLocalState(NEW);
+        if(Objects.requireNonNull(s.getSignal()) == SignalEnum.INITIATING_I) {
+            if(getNode().getNodeTaskInformationHandler() != null) {
+                Optional<Pair<String, SignalEnum>> lastInformation = getNode().getNodeTaskInformationHandler().getUnknownTaskSignal(task.getDefinition().getName());
+                if(lastInformation.isPresent()) {
+                    final Pair<String, SignalEnum> stringSignalEnumPair = lastInformation.get();
+                    logger.info("Found information for new task {} INITIATING_I signal: {} node: {} ",
+                            task, stringSignalEnumPair.getRight(), stringSignalEnumPair.getLeft());
+                    switch (stringSignalEnumPair.getRight()) {
+                        case CLAIMED:
+                        case HEARTBEAT:
+                            task.setLocalState(CLAIMED_BY_OTHER, stringSignalEnumPair.getLeft());
+                            break;
+                        case HANDLING:
+                            task.setLocalState(HANDLING_BY_OTHER, stringSignalEnumPair.getLeft());
+                            break;
+                        default:
+                            task.setLocalState(INITIATING);
                     }
                 }
                 else {
                     task.setLocalState(NEW);
                 }
-                break;
-            default:
-                super.handleInternal(task, s);
+            }
+            else {
+                task.setLocalState(NEW);
+            }
+        }
+        else {
+            super.handleInternal(task, s);
         }
     }
 

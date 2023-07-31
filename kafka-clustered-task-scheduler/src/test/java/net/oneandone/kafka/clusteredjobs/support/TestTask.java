@@ -30,10 +30,10 @@ public class TestTask extends TaskDefaults {
 
     private Duration handlingDuration = period.dividedBy(5);
 
-    private AtomicLong executions = new AtomicLong(0L);
+    private final AtomicLong executions = new AtomicLong(0L);
 
-    private AtomicLong startups = new AtomicLong(0L);
-    private AtomicLong shutdowns = new AtomicLong(0L);
+    private final AtomicLong startups = new AtomicLong(0L);
+    private final AtomicLong shutdowns = new AtomicLong(0L);
 
     private TestTask() {
     }

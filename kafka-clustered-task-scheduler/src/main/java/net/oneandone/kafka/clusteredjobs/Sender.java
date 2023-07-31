@@ -20,7 +20,7 @@ public class Sender extends StoppableBase {
     private final NodeImpl node;
     private final String syncTopic;
     private KafkaProducer syncProducer;
-    private Map<String, Object> config;
+    private final Map<String, Object> config;
     Instant lastSendTimestamp = Instant.now();
 
     /**
@@ -60,19 +60,19 @@ public class Sender extends StoppableBase {
     public void sendSignal(final TaskImpl t, final SignalEnum signal, Long reference) {
         logger.info("Sending from N: {} for task {} int State: {} Signal: {} Reference: {}",
                                         node.getUniqueNodeId(),
-                t != null ? t.getDefinition().getName() : "NodeTask", t != null ? t.getLocalState() : "null", signal,
+                (t != null) ? t.getDefinition().getName() : "NodeTask", (t != null) ? t.getLocalState() : "null", signal,
                 reference);
         Signal toSend = new Signal();
         if (t != null) {
-            toSend.taskName = t.getDefinition().getName();
+            toSend.setTaskName(t.getDefinition().getName());
         } else {
-            toSend.taskName = "NodeTask";
+            toSend.setTaskName("NodeTask");
         }
-        toSend.nodeProcThreadId = node.getUniqueNodeId();
-        toSend.signal = signal;
-        toSend.timestamp = node.getNow();
+        toSend.setNodeProcThreadId(node.getUniqueNodeId());
+        toSend.setSignal(signal);
+        toSend.setTimestamp(node.getNow());
         this.lastSendTimestamp = node.getNow();
-        toSend.reference = reference;
+        toSend.setReference(reference);
         if (!doShutdown()) {
             getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(),
                     JsonMarshaller.gson.toJson(toSend)));

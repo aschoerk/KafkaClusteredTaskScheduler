@@ -4,14 +4,13 @@ import static org.apache.logging.log4j.Level.ERROR;
 import static org.apache.logging.log4j.Level.WARN;
 
 import java.io.Serializable;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Layout;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -39,7 +38,7 @@ public class InterceptingAppender extends AbstractAppender {
                                                   @PluginAttribute("ignoreExceptions") boolean ignoreExceptions,
                                                   @PluginAttribute("consoleLevel") String consoleLevelP) {
 
-        return new InterceptingAppender(name == null ? "InterceptingAppender" : name    , filter, layout, ignoreExceptions, consoleLevelP);
+        return new InterceptingAppender((name == null) ? "InterceptingAppender" : name, filter, layout, ignoreExceptions, consoleLevelP);
     }
 
     public static AtomicLong countWarnings = new AtomicLong();

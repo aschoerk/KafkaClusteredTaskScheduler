@@ -49,23 +49,23 @@ public class HandlingByNode extends StateHandlerBase {
     }
 
     @Override
-    protected void handleInternal(final TaskImpl taskImpl, final Signal s) {
+    protected void handleInternal(final TaskImpl task, final Signal s) {
         if (s.getSignal() == UNCLAIM_I) {
-            doUnclaiming(taskImpl);
+            doUnclaiming(task);
         } else if(s.getSignal() == SignalEnum.UNHANDLING_I) {
-            if(taskImpl.getDefinition().getMaxExecutionsOnNode() == null || taskImpl.getExecutionsOnNode() < taskImpl.getDefinition().getMaxExecutionsOnNode()) {
-                taskImpl.setLocalState(StateEnum.CLAIMED_BY_NODE);
-                getNode().getSender().sendSignal(taskImpl, SignalEnum.CLAIMED);
-                getNode().getPendingHandler().scheduleTaskHeartbeatOnNode(taskImpl);
-                getNode().getPendingHandler().scheduleTaskHandlingOnNode(taskImpl);
+            if((task.getDefinition().getMaxExecutionsOnNode() == null) || (task.getExecutionsOnNode() < task.getDefinition().getMaxExecutionsOnNode())) {
+                task.setLocalState(StateEnum.CLAIMED_BY_NODE);
+                getNode().getSender().sendSignal(task, SignalEnum.CLAIMED);
+                getNode().getPendingHandler().scheduleTaskHeartbeatOnNode(task);
+                getNode().getPendingHandler().scheduleTaskHandlingOnNode(task);
             }
             else {
-                taskImpl.clearExecutionsOnNode();
-                doUnclaiming(taskImpl);
+                task.clearExecutionsOnNode();
+                doUnclaiming(task);
             }
         }
         else {
-            super.handleInternal(taskImpl, s);
+            super.handleInternal(task, s);
         }
     }
 }

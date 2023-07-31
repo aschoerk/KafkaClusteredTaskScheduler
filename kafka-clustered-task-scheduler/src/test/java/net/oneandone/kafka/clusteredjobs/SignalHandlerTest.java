@@ -1,8 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import static net.oneandone.kafka.clusteredjobs.api.StateEnum.ERROR;
 import static net.oneandone.kafka.clusteredjobs.support.TestTask.TestTaskBuilder.aTestTask;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Optional;
 
@@ -13,8 +11,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
-import net.oneandone.kafka.clusteredjobs.support.TestTask;
 import net.oneandone.kafka.clusteredjobs.support.TestContainer;
+import net.oneandone.kafka.clusteredjobs.support.TestTask;
 
 public class SignalHandlerTest {
 
@@ -59,7 +57,6 @@ public class SignalHandlerTest {
 
                 @Override
                 void readOldSignals() {
-                    ;
                 }
 
                 @Override
@@ -162,7 +159,7 @@ public class SignalHandlerTest {
         final TestNodeFactory nodeFactory = new TestNodeFactory();
         NodeImpl node = new NodeImpl(container, nodeFactory);
         node.run();
-        if(senderNode.equals("ME")) {
+        if("ME".equals(senderNode)) {
             senderNode = node.getUniqueNodeId();
         }
 
@@ -170,9 +167,9 @@ public class SignalHandlerTest {
         TaskImpl task = node.register(testTask);
         task.localState = localState;
         Signal signalReceived = new Signal();
-        signalReceived.taskName = testTask.getName();
-        signalReceived.nodeProcThreadId = senderNode;
-        signalReceived.signal = signal;
+        signalReceived.setTaskName(testTask.getName());
+        signalReceived.setNodeProcThreadId(senderNode);
+        signalReceived.setSignal(signal);
         signalReceived.setCurrentOffset(0L);
         node.getSignalHandler().handleSignal(task, signalReceived);
 

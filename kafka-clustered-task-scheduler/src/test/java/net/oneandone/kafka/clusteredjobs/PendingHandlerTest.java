@@ -9,15 +9,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
 import org.mockito.Mockito;
 
 public class PendingHandlerTest {
@@ -28,14 +24,14 @@ public class PendingHandlerTest {
         NodeImpl node = Mockito.mock(NodeImpl.class);
         Mockito.when(node.getNow()).thenReturn(fixed.instant());
         PendingHandler peh = new PendingHandler(node);
-        peh.setDefaultWaitMillis(1000000);
+        peh.setDefaultWaitMillis(Duration.ofMillis(1000000));
 
         Thread thread = new Thread(() -> peh.loopBody());
         thread.start();
         Thread.sleep(100);
         assertTrue(thread.isAlive(), "Thread should stay alive because of long waittime");
         int count = 0;
-        while (thread.isAlive() && count < 1000) {
+        while (thread.isAlive() && (count < 1000)) {
             synchronized (peh) {
                 peh.notify();
             }
@@ -52,7 +48,7 @@ public class PendingHandlerTest {
         NodeImpl node = Mockito.mock(NodeImpl.class);
         Mockito.when(node.getNow()).thenReturn(fixed.instant());
         PendingHandler peh = new PendingHandler(node);
-        peh.setDefaultWaitMillis(5);
+        peh.setDefaultWaitMillis(Duration.ofMillis(5));
         MutableBoolean called = new MutableBoolean(false);
         PendingEntry pe = new PendingEntry(fixed.instant().plus(Duration.ofMillis(1)), "test", () -> {
             called.setTrue();

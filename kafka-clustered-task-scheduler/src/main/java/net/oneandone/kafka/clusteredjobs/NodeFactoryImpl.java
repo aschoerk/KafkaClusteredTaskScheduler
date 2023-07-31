@@ -1,6 +1,5 @@
 package net.oneandone.kafka.clusteredjobs;
 
-import java.time.Duration;
 import java.time.Instant;
 
 import net.oneandone.kafka.clusteredjobs.api.Node;

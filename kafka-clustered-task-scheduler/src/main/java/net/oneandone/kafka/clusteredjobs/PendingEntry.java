@@ -8,7 +8,7 @@ import java.util.Comparator;
  */
 public class PendingEntry  {
 
-    private Instant schedulingTime;
+    private final Instant schedulingTime;
 
     final private Runnable pendingRunnable;
 
@@ -51,14 +51,14 @@ public class PendingEntry  {
     }
 
     @Override
-    public boolean equals(final Object o) {
-        if(this == o) {
+    public boolean equals(final Object obj) {
+        if(this == obj) {
             return true;
         }
-        if((o == null) || (getClass() != o.getClass())) {
+        if((obj == null) || (getClass() != obj.getClass())) {
             return false;
         }
-        PendingEntry that = (PendingEntry) o;
+        PendingEntry that = (PendingEntry) obj;
         return identifier.equals(that.identifier);
     }
 
@@ -83,7 +83,7 @@ public class PendingEntry  {
         @Override
         public int compare(final PendingEntry o1, final PendingEntry o2) {
             int result = o1.schedulingTime.compareTo(o2.schedulingTime);
-            return result != 0 ? result : o1.identifier.compareTo(o2.identifier);
+            return (result != 0) ? result : o1.identifier.compareTo(o2.identifier);
         }
     }
 }

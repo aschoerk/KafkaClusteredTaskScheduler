@@ -7,9 +7,9 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.oneandone.kafka.clusteredjobs.states.StateHandlerFactory;
-import net.oneandone.kafka.clusteredjobs.states.StateHandlerBase;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
+import net.oneandone.kafka.clusteredjobs.states.StateHandlerBase;
+import net.oneandone.kafka.clusteredjobs.states.StateHandlerFactory;
 
 /**
  * Handles Statechanges of the local task-state-machine.
@@ -20,7 +20,7 @@ public class SignalHandler {
 
     private final NodeImpl node;
 
-    private StateHandlerBase[] stateHandlers = new StateHandlerBase[StateEnum.values().length];
+    private final StateHandlerBase[] stateHandlers = new StateHandlerBase[StateEnum.values().length];
 
     SignalHandler(NodeImpl node) {
         this.node = node;
@@ -49,8 +49,8 @@ public class SignalHandler {
                 .sorted()
                 .forEach(s -> {
                     logger.info("handle TaskImpl {} State {} signal/offset {}/{} self: {}", task.getDefinition().getName(), task.getLocalState()
-                            , s.signal, s.getCurrentOffset().get(), s.nodeProcThreadId.equals(node.getUniqueNodeId()));
-                    if(s.signal.isInternal() && !s.nodeProcThreadId.equals(node.getUniqueNodeId())) {
+                            , s.getSignal(), s.getCurrentOffset().get(), s.getNodeProcThreadId().equals(node.getUniqueNodeId()));
+                    if(s.getSignal().isInternal() && !s.getNodeProcThreadId().equals(node.getUniqueNodeId())) {
                         task.setLocalState(ERROR);
                     }
                     else {

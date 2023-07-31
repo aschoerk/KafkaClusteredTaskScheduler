@@ -168,7 +168,7 @@ public class StateHandlerBase {
      */
     protected void claimed(final TaskImpl task, final Signal s) {
         final Optional<String> currentExecutor = task.getCurrentExecutor();
-        if((task.getLocalState() == CLAIMED_BY_OTHER || task.getLocalState() == HANDLING_BY_OTHER)
+        if(((task.getLocalState() == CLAIMED_BY_OTHER) || (task.getLocalState() == HANDLING_BY_OTHER))
            && currentExecutor.isPresent() && !s.getNodeProcThreadId().equals(currentExecutor.get())) {
             info(task, s, "Executor " + currentExecutor.get() + " different");
         }

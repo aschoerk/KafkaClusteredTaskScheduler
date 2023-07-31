@@ -47,9 +47,7 @@ public class ClaimedByOther extends StateHandlerBase {
 
     @Override
     protected void handleOwnSignal(final TaskImpl task, final Signal s) {
-        if(Objects.requireNonNull(s.getSignal()) == SignalEnum.CLAIMING) {
-        }
-        else {
+        if(Objects.requireNonNull(s.getSignal()) != SignalEnum.CLAIMING) {
             super.handleOwnSignal(task, s);
         }
     }

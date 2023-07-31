@@ -37,7 +37,7 @@ public class NodeTaskInformationHandler {
 
     Set<String> nodesReceivedFrom = new HashSet<>();
 
-    private Map<String, Signal> unknownTaskSignals =  Collections.synchronizedMap(new HashMap<String, Signal>());
+    private final Map<String, Signal> unknownTaskSignals =  Collections.synchronizedMap(new HashMap<String, Signal>());
 
     SignalsWatcher signalsWatcher = null;
 
@@ -51,7 +51,7 @@ public class NodeTaskInformationHandler {
 
     boolean unsureState(TaskImpl task) {
         StateEnum state = task.getLocalState();
-        return state == NEW || state == ERROR;
+        return (state == NEW) || (state == ERROR);
     }
 
     /**
@@ -80,7 +80,7 @@ public class NodeTaskInformationHandler {
             nodesReceivedFrom.add(nodeTaskInformation.getName());
             nodeTaskInformation.getTaskInformation().forEach(ti -> {
                 TaskImpl task = node.tasks.get(ti.getTaskName());
-                if (task != null && ti.getState() != null) {
+                if ((task != null) && (ti.getState() != null)) {
                     if (task.getLocalState() == NEW) {
                         switch (ti.getState()) {
                             case NEW:
@@ -133,7 +133,7 @@ public class NodeTaskInformationHandler {
                 break;
             default:
                 Signal lastSignal = unknownTaskSignals.get(ti.getTaskName());
-                if (lastSignal != null && lastSignal.nodeProcThreadId.equals(sender)) {
+                if ((lastSignal != null) && lastSignal.getNodeProcThreadId().equals(sender)) {
                     unknownTaskSignals.remove(ti.getTaskName());
                 }
         }
@@ -151,21 +151,21 @@ public class NodeTaskInformationHandler {
                 .entrySet()
                 .stream()
                 .flatMap(e -> e.getValue().getTaskInformation().stream()
-                        .filter(ti -> ti.getState() == CLAIMED_BY_NODE || ti.getState() == HANDLING_BY_NODE)
+                        .filter(ti -> (ti.getState() == CLAIMED_BY_NODE) || (ti.getState() == HANDLING_BY_NODE))
                         .map(ti -> Pair.of(e.getValue(), ti))
                 )
                 .collect(Collectors.toList());
 
         List<Pair<String, SignalEnum>> claimingNodes = signalsWatcher.getUnmatchedSignals().stream()
-                .filter(s -> s.taskName.equals(taskname))
-                .filter(s -> s.signal == SignalEnum.CLAIMED || s.signal == SignalEnum.HANDLING || s.signal == SignalEnum.HEARTBEAT)
-                .map(s -> Pair.of(s.nodeProcThreadId, s.signal))
+                .filter(s -> s.getTaskName().equals(taskname))
+                .filter(s -> (s.getSignal() == SignalEnum.CLAIMED) || (s.getSignal() == SignalEnum.HANDLING) || (s.getSignal() == SignalEnum.HEARTBEAT))
+                .map(s -> Pair.of(s.getNodeProcThreadId(), s.getSignal()))
                 .collect(Collectors.toList());
         if (claimingNodes.isEmpty()) {
             List<Pair<String, SignalEnum>> oldSignals = signalsWatcher.getOldSignals().stream()
-                    .filter(s -> s.taskName.equals(taskname))
-                    .filter(s -> s.signal == SignalEnum.CLAIMED || s.signal == SignalEnum.HANDLING || s.signal == SignalEnum.HEARTBEAT)
-                    .map(s -> Pair.of(s.nodeProcThreadId, s.signal))
+                    .filter(s -> s.getTaskName().equals(taskname))
+                    .filter(s -> (s.getSignal() == SignalEnum.CLAIMED) || (s.getSignal() == SignalEnum.HANDLING) || (s.getSignal() == SignalEnum.HEARTBEAT))
+                    .map(s -> Pair.of(s.getNodeProcThreadId(), s.getSignal()))
                     .collect(Collectors.toList());
             if (oldSignals.size() > 0) {
                 result = Optional.of(oldSignals.get(oldSignals.size() - 1));

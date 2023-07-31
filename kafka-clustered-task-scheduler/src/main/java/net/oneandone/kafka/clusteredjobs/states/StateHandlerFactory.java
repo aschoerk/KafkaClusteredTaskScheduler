@@ -5,9 +5,16 @@ import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 
 /**
- * @author aschoerk
+ * creates objects capable to handle signals arriving for tasks in a specific state
  */
 public class StateHandlerFactory {
+
+    /**
+     * create a handler for a specific task-state
+     * @param node the node for which the handler-singleton is to be created
+     * @param state the task state the specific object should handle
+     * @return the handler.
+     */
     public StateHandlerBase createStateHandler(NodeImpl node, StateEnum state) {
         switch(state) {
             case NEW:

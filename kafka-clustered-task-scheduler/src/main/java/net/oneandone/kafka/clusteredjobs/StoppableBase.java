@@ -3,6 +3,7 @@ package net.oneandone.kafka.clusteredjobs;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,10 +11,10 @@ import org.slf4j.LoggerFactory;
  * Baseclass of classes which should react to undeployment or shutdown as fast as possible
  */
 public abstract class StoppableBase implements Stoppable {
-    private static AtomicInteger threadIx = new AtomicInteger();
-    private ScheduledFuture<?> scheduledFuture = null;
-    private static Logger logger = LoggerFactory.getLogger(StoppableBase.class);
-    private AtomicBoolean doShutdown = new AtomicBoolean(false);
+    private static final AtomicInteger threadIx = new AtomicInteger();
+    private final ScheduledFuture<?> scheduledFuture = null;
+    private static final Logger logger = LoggerFactory.getLogger(StoppableBase.class);
+    private final AtomicBoolean doShutdown = new AtomicBoolean(false);
     private boolean running = false;
 
 

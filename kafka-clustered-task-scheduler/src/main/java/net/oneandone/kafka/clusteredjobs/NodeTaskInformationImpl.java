@@ -17,7 +17,7 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
         this.name = name;
     }
 
-    private String name;
+    private final String name;
 
     private transient Long offset = null;
 
@@ -57,9 +57,9 @@ class NodeTaskInformationImpl implements NodeTaskInformation {
 
     static class TaskInformationImpl implements TaskInformation {
 
-        private String name;
-        private StateEnum taskState;
-        private String nodeName;
+        private final String name;
+        private final StateEnum taskState;
+        private final String nodeName;
 
         public TaskInformationImpl(final String name, final StateEnum taskState, final String nodeName) {
             this.name = name;

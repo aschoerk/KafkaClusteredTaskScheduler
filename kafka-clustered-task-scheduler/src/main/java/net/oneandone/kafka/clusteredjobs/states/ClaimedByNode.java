@@ -4,6 +4,7 @@ import static net.oneandone.kafka.clusteredjobs.SignalEnum.HANDLING;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.HEARTBEAT;
 import static net.oneandone.kafka.clusteredjobs.SignalEnum.UNHANDLING_I;
 
+import java.util.Objects;
 import java.util.concurrent.Future;
 
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -26,18 +27,15 @@ public class ClaimedByNode extends StateHandlerBase {
         super(node, StateEnum.CLAIMED_BY_NODE);
     }
 
-    long handlerThreadCounter = 0L;
-
-
+    private long handlerThreadCounter = 0L;
 
     @Override
     protected void handleSignal(final TaskImpl task, final Signal s) {
-        switch (s.getSignal()) {
-            case CLAIMING:
-                getNode().getSender().sendSignal(task, SignalEnum.CLAIMED);
-                break;
-            default:
-                super.handleSignal(task, s);
+        if(Objects.requireNonNull(s.getSignal()) == SignalEnum.CLAIMING) {
+            getNode().getSender().sendSignal(task, SignalEnum.CLAIMED);
+        }
+        else {
+            super.handleSignal(task, s);
         }
     }
 
@@ -64,8 +62,9 @@ public class ClaimedByNode extends StateHandlerBase {
                 getNode().getPendingHandler().removeClaimedHeartbeat(task); // claim could get lost when running job
                 task.setLocalState(StateEnum.HANDLING_BY_NODE);
                 getNode().getSender().sendSignal(task, HANDLING);
-                final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter++;
-                MutableObject<Future> p = new MutableObject<>();
+                final String threadName = task.getDefinition().getName() + "_" + Thread.currentThread().getId() + "_" + handlerThreadCounter;
+                handlerThreadCounter++;
+                MutableObject<Future<?>> p = new MutableObject<>();
                 p.setValue(getNode().newHandlerThread(() -> {
                     Thread.currentThread().setName(threadName);
                     try {
@@ -77,7 +76,7 @@ public class ClaimedByNode extends StateHandlerBase {
                         getNode().disposeHandlerThread(p.getValue());
                     }
                 }));
-                getNode().getPendingHandler().scheduleInterupter(task, threadName, p.getValue());
+                getNode().getPendingHandler().scheduleInterrupter(task, threadName, p.getValue());
                 break;
             case HEARTBEAT_I:
                 getNode().getSender().sendSignal(task, HEARTBEAT);

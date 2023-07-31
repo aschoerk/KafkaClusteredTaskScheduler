@@ -41,7 +41,7 @@ import net.oneandone.kafka.clusteredjobs.api.StateEnum;
 public class SignalsWatcher extends StoppableBase {
     private static final long SEARCH_SYNC_OFFSET_TRIGGER = 1000;
     Logger logger = LoggerFactory.getLogger(NodeImpl.class);
-    private NodeImpl node;
+    private final NodeImpl node;
     ConcurrentHashMap<String, ConcurrentHashMap<String, Signal>> lastSignalPerTaskAndNode = new ConcurrentHashMap<>();
 
     transient volatile ConsumerData watcherStarting;
@@ -75,9 +75,9 @@ public class SignalsWatcher extends StoppableBase {
 
     Map<String, NodeTaskInformation> lastNodeInformation = new ConcurrentHashMap<>();
 
-    private ArrayList<Signal> oldSignals = new ArrayList<>();
+    private final ArrayList<Signal> oldSignals = new ArrayList<>();
 
-    private ArrayList<Signal> unmatchedSignals = new ArrayList();
+    private final ArrayList<Signal> unmatchedSignals = new ArrayList();
 
     void readOldSignals() {
         iterateOldRecords(node.syncTopic, node.bootstrapServers, node.getUniqueNodeId(), r -> {
@@ -91,7 +91,7 @@ public class SignalsWatcher extends StoppableBase {
                         JsonMarshaller.gson.fromJson(r.value(), NodeTaskInformationImpl.class);
                 nodeInformation.setOffset(r.offset());
                 NodeTaskInformation existing = lastNodeInformation.get(nodeInformation.getName());
-                if(existing == null || existing.getOffset().get() < nodeInformation.getOffset().get()) {
+                if((existing == null) || (existing.getOffset().get() < nodeInformation.getOffset().get())) {
                     lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
                 }
             }
@@ -106,7 +106,7 @@ public class SignalsWatcher extends StoppableBase {
             ConsumerData consumerData = initConsumer(topic, consumer);
             long endOffset = consumerData.endOffset;
             AtomicBoolean done = new AtomicBoolean(false);
-            while (!done.get() && endOffset >= consumerData.startOffset) {
+            while (!done.get() && (endOffset >= consumerData.startOffset)) {
                 long startoffset = endOffset - 100;
                 if(startoffset < consumerData.startOffset) {
                     startoffset = consumerData.startOffset;
@@ -138,7 +138,7 @@ public class SignalsWatcher extends StoppableBase {
                 .reduce(new HashMap<String, NodeTaskInformation>(),
                         (result, e) -> {
                             e.getTaskInformation().stream().forEach(ti -> {
-                                if((ti.getState() == StateEnum.CLAIMED_BY_NODE || ti.getState() == StateEnum.HANDLING_BY_NODE)
+                                if(((ti.getState() == StateEnum.CLAIMED_BY_NODE) || (ti.getState() == StateEnum.HANDLING_BY_NODE))
                                    && !result.containsKey(ti.getTaskName())) {
                                     result.put(ti.getTaskName(), e);
                                 }
@@ -152,12 +152,14 @@ public class SignalsWatcher extends StoppableBase {
                     return result;
                 }, (a, b) -> null);
         lastNodeInformation.keySet().forEach(k -> {
-            if (lastNodeInformation.get(k).getTaskInformation().size() > 0 && !reducedNodeInformation.containsKey(k))
+            if ((lastNodeInformation.get(k).getTaskInformation().size() > 0) && !reducedNodeInformation.containsKey(k)) {
                 lastNodeInformation.put(k, nullNodeTaskInformation);
+            }
         });
         node.getNodeTaskInformationHandler().setSignalsWatcher(this);
     }
 
+    @Override
     public void run() {
         initThreadName(this.getClass().getSimpleName());
 
@@ -208,10 +210,10 @@ public class SignalsWatcher extends StoppableBase {
                                 Object event = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
-                                TaskImpl task = node.tasks.get(signal.taskName);
-                                node.lastSignalFromNode(signal.nodeProcThreadId, Instant.ofEpochMilli(r.timestamp()));
+                                TaskImpl task = node.tasks.get(signal.getTaskName());
+                                node.lastSignalFromNode(signal.getNodeProcThreadId(), Instant.ofEpochMilli(r.timestamp()));
 
-                                if(task == null && signal.signal == SignalEnum.DO_INFORMATION_SEND) {
+                                if((task == null) && (signal.getSignal() == SignalEnum.DO_INFORMATION_SEND)) {
                                     if (!signal.equalNode(node)) {
                                         logger.debug("Node: {} triggering NodeHeartBeat beause of DOHEARTBEAT", node.getUniqueNodeId());
                                         node.getPendingHandler().scheduleInformationSender(node.getNow());
@@ -219,19 +221,19 @@ public class SignalsWatcher extends StoppableBase {
                                 }
                                 else if(task != null) {
                                     logger.debug("N: {} Offs: {} T: {}/{} S: {}/{}", node.getUniqueNodeId(), r.offset(),
-                                            signal.taskName, task.getLocalState(), signal.nodeProcThreadId, signal.signal);
-                                    if(lastSignalPerTaskAndNode.get(signal.taskName) == null) {
-                                        lastSignalPerTaskAndNode.put(signal.taskName, new ConcurrentHashMap<>());
+                                            signal.getTaskName(), task.getLocalState(), signal.getNodeProcThreadId(), signal.getSignal());
+                                    if(lastSignalPerTaskAndNode.get(signal.getTaskName()) == null) {
+                                        lastSignalPerTaskAndNode.put(signal.getTaskName(), new ConcurrentHashMap<>());
                                     }
-                                    Signal previousSignalFromThisNodeForThisTask = lastSignalPerTaskAndNode.get(signal.taskName).get(signal.nodeProcThreadId);
+                                    Signal previousSignalFromThisNodeForThisTask = lastSignalPerTaskAndNode.get(signal.getTaskName()).get(signal.getNodeProcThreadId());
                                     if(previousSignalFromThisNodeForThisTask != null) {
                                         if(previousSignalFromThisNodeForThisTask.getCurrentOffset().get() > signal.getCurrentOffset().get()) {
                                             logger.warn("Handled older signal {} for TaskImpl later found: {}", signal, previousSignalFromThisNodeForThisTask);
                                         }
                                     }
-                                    lastSignalPerTaskAndNode.get(signal.taskName).put(signal.nodeProcThreadId, signal);
-                                    logger.info("SignalHandler handle signal {} from {} for TaskImpl {}/{}", signal.signal,
-                                            signal.nodeProcThreadId, task.getDefinition(), task.getLocalState());
+                                    lastSignalPerTaskAndNode.get(signal.getTaskName()).put(signal.getNodeProcThreadId(), signal);
+                                    logger.info("SignalHandler handle signal {} from {} for TaskImpl {}/{}", signal.getSignal(),
+                                            signal.getNodeProcThreadId(), task.getDefinition(), task.getLocalState());
                                     node.getSignalHandler().handleSignal(task, signal);
                                 }
                                 else {
@@ -282,7 +284,7 @@ public class SignalsWatcher extends StoppableBase {
         }
 
         boolean noOffsets() {
-            return startOffset < 0 || endOffset < 0;
+            return (startOffset < 0) || (endOffset < 0);
         }
 
 
@@ -293,7 +295,7 @@ public class SignalsWatcher extends StoppableBase {
 
     static ConsumerData initConsumer(String topic, final KafkaConsumer<String, String> consumer) {
         List<PartitionInfo> partitionInfo = consumer.listTopics().get(topic);
-        if(partitionInfo != null && partitionInfo.size() != 1) {
+        if((partitionInfo != null) && (partitionInfo.size() != 1)) {
             throw new KctmException("Either topic " + topic + " not found or more than one partition defined");
         }
         PartitionInfo thePartitionInfo = partitionInfo.get(0);
@@ -301,7 +303,7 @@ public class SignalsWatcher extends StoppableBase {
         consumer.assign(Collections.singletonList(partition));
         Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
         Map<TopicPartition, Long> endOffsets = consumer.endOffsets(Collections.singletonList(partition), Duration.ofSeconds(2));
-        if(endOffsets.size() != 1 && beginningOffsets.size() != 1) {
+        if((endOffsets.size() != 1) && (beginningOffsets.size() != 1)) {
             return new ConsumerData(partition);
         }
         long endOffset = endOffsets.get(partition).longValue();

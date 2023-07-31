@@ -34,12 +34,14 @@
     </modules>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <slf4j.version>1.7.20</slf4j.version>
         <!-- internal -->
         <commons-lang3.version>3.9</commons-lang3.version>
         <!-- external -->
         <gson.version>2.10.1</gson.version>
-        <kafka.version>3.4.0</kafka.version>
+        <kafka.version>3.4.1</kafka.version>
         <scala.version>2.13</scala.version>
 
         <!-- test -->

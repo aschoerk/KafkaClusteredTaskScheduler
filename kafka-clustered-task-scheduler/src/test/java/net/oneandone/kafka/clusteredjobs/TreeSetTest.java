@@ -31,7 +31,7 @@ public class TreeSetTest {
             @Override
             public int compare(final Element o1, final Element o2) {
                 int result = -o1.content.compareTo(o2.content);
-                return result != 0 ? result : o1.identifier.compareTo(o2.identifier);
+                return (result != 0) ? result : o1.identifier.compareTo(o2.identifier);
             }
         });
 

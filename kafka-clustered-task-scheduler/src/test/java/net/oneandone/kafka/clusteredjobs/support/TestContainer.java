@@ -1,5 +1,6 @@
 package net.oneandone.kafka.clusteredjobs.support;
 
+import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -7,6 +8,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import net.oneandone.kafka.clusteredjobs.api.Configuration;
 import net.oneandone.kafka.clusteredjobs.api.Container;
 
 /**
@@ -15,8 +17,8 @@ import net.oneandone.kafka.clusteredjobs.api.Container;
 public class TestContainer implements Container {
 
 
-    private String syncTopicName;
-    private String bootstrapServers;
+    private final String syncTopicName;
+    private final String bootstrapServers;
 
     BlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
     ExecutorService executorService;
@@ -41,5 +43,23 @@ public class TestContainer implements Container {
     @Override
     public Future submitInThread(Runnable runnable) {
         return executorService.submit(runnable);
+    }
+    @Override
+    public Future submitInLongRunningThread(Runnable runnable) {
+        return executorService.submit(runnable);
+    }
+    @Override
+    public Configuration getConfiguration() {
+        return new Configuration() {
+            @Override
+            public Duration getNodeHeartBeat() {
+                return Duration.ofSeconds(5);
+            }
+
+            @Override
+            public Duration getReviverPeriod() {
+                return Duration.ofSeconds(10);
+            }
+        };
     }
 }

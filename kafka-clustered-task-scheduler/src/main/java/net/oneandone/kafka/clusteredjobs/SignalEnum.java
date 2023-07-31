@@ -40,6 +40,7 @@ public enum SignalEnum implements SignalInterface {
      * initiating a new task
      */
     INITIATING_I {
+        @Override
         public boolean isInternal() { return true; }
 
     },
@@ -48,6 +49,7 @@ public enum SignalEnum implements SignalInterface {
      * start handling a claimed task
      */
     HANDLING_I {
+        @Override
         public boolean isInternal() { return true; }
 
     },
@@ -57,6 +59,7 @@ public enum SignalEnum implements SignalInterface {
      * indicated
      */
     HEARTBEAT_I {
+        @Override
         public boolean isInternal() { return true; }
 
     },
@@ -65,6 +68,7 @@ public enum SignalEnum implements SignalInterface {
      * after some time in state INITIATING start CLAIMING
      */
     CLAIMING_I {
+        @Override
         public boolean isInternal() { return true; }
 
     },
@@ -72,6 +76,7 @@ public enum SignalEnum implements SignalInterface {
      * release claim on task
      */
     UNCLAIM_I {
+        @Override
         public boolean isInternal() { return true; }
 
     },
@@ -79,6 +84,7 @@ public enum SignalEnum implements SignalInterface {
      * indicate ready handling of a task
      */
     UNHANDLING_I {
+        @Override
         public boolean isInternal() { return true; }
 
     },
@@ -86,6 +92,7 @@ public enum SignalEnum implements SignalInterface {
      * indicate starting to resurrect a task
      */
     REVIVING {
+        @Override
         public boolean isInternal() { return true; }
 
     };

@@ -17,6 +17,9 @@ import net.oneandone.kafka.clusteredjobs.api.StateEnum;
  */
 public class JsonMarshaller {
 
+    /**
+     * used to build the Gson-Object used to convert data transported via Apache-Kafka
+     */
     public static GsonBuilder gsonBuilder = new GsonBuilder();
     static  {
         gsonBuilder.registerTypeAdapter(NodeTaskInformation.TaskInformation.class,
@@ -69,6 +72,10 @@ public class JsonMarshaller {
         });
 
     }
+
+    /**
+     * used to convert the data transported via Kafka
+     */
     public static Gson gson = gsonBuilder.create();
 
     JsonMarshaller() {

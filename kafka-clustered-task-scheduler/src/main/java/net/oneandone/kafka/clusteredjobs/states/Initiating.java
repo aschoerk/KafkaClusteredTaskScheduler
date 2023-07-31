@@ -1,5 +1,7 @@
 package net.oneandone.kafka.clusteredjobs.states;
 
+import java.util.Objects;
+
 import net.oneandone.kafka.clusteredjobs.NodeImpl;
 import net.oneandone.kafka.clusteredjobs.Signal;
 import net.oneandone.kafka.clusteredjobs.SignalEnum;
@@ -41,23 +43,21 @@ public class Initiating extends StateHandlerBase {
 
     @Override
     protected void handleOwnSignal(final TaskImpl task, final Signal s) {
-        switch (s.getSignal()) {
-            case UNCLAIMED:
-                break;
-            default:
-                super.handleOwnSignal(task, s);
+        if(Objects.requireNonNull(s.getSignal()) == SignalEnum.UNCLAIMED) {
+        }
+        else {
+            super.handleOwnSignal(task, s);
         }
     }
 
     @Override
     protected void handleInternal(final TaskImpl task, final Signal s) {
-        switch (s.getSignal()) {
-            case CLAIMING_I:
-                task.setLocalState(StateEnum.CLAIMING);
-                getNode().getSender().sendSignal(task, SignalEnum.CLAIMING, task.getUnclaimedSignalOffset());
-                break;
-            default:
-                super.handleInternal(task, s);
+        if(Objects.requireNonNull(s.getSignal()) == SignalEnum.CLAIMING_I) {
+            task.setLocalState(StateEnum.CLAIMING);
+            getNode().getSender().sendSignal(task, SignalEnum.CLAIMING, task.getUnclaimedSignalOffset());
+        }
+        else {
+            super.handleInternal(task, s);
         }
     }
 

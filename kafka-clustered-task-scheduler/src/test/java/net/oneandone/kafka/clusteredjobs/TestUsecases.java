@@ -1,6 +1,7 @@
 package net.oneandone.kafka.clusteredjobs;
 
 import static net.oneandone.kafka.clusteredjobs.support.TestTask.TestTaskBuilder.aTestTask;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,8 +31,8 @@ public class TestUsecases extends TestBase {
     public static final int nodeTaskCount = 10;
     @Inject
     TestResources testResources;
-    private int cycleNum = 20;
-    private int waitMillis = 10000;
+    private final int cycleNum = 20;
+    private final int waitMillis = 10000;
 
     boolean runningDuringRelease() {
         // return System.getProperty("surefire.test.class.path") != null;
@@ -54,7 +55,8 @@ public class TestUsecases extends TestBase {
     void cycle(String testName, TestTask testTask, int maxCycles, long millisToLetRun, Runnable r) throws InterruptedException {
         int count = 0;
         int signalNumber = 0;
-        while (count++ < maxCycles) {
+        while (count < maxCycles) {
+            count++;
             long currentExecutions = testTask.getExecutions();
             Thread.sleep(millisToLetRun);
             logger.info("Test {} Loop {} Done: Executions of {}: {} Diff: {}",testName, count   , testTask.getName(),
@@ -66,6 +68,7 @@ public class TestUsecases extends TestBase {
             assertNotEquals(signalNumber, num);
             signalNumber = num;
         }
+        count++;
 
     }
 
@@ -77,8 +80,8 @@ public class TestUsecases extends TestBase {
         NodeImpl node1 = newNode();
         NodeImpl node2 = newNode();
         final TestTask taskDefinition = aTestTask().withName("notRegistered").build();
-        cycle("testUsingOneNode", taskDefinition, 5, NodeImpl.HEART_BEAT_PERIOD.multipliedBy(5).toMillis(), () -> {
-            assertTrue(taskDefinition.getInterrupted().get() == 0);
+        cycle("testUsingOneNode", taskDefinition, 5, node1.getHeartBeatPeriod().multipliedBy(5).toMillis(), () -> {
+            assertEquals(0, taskDefinition.getInterrupted().get());
         });
         node1.shutdown();
         node2.shutdown();
@@ -94,7 +97,7 @@ public class TestUsecases extends TestBase {
         final TestTask taskDefinition = aTestTask().withName("TestTask").withMaxExecutionsOnNode(5L).withPeriod(Duration.ofMillis(500)).build();
         node1.register(taskDefinition);
         cycle("testUsingOneNode", taskDefinition, 5, 5000, () -> {
-            assertTrue(taskDefinition.getInterrupted().get() == 0);
+            assertEquals(0, taskDefinition.getInterrupted().get());
         });
         node1.shutdown();
         checkLogs();
@@ -178,7 +181,7 @@ public class TestUsecases extends TestBase {
         List<TestTask> definitions = new ArrayList<>();
         for (int i = 0; i < nodeTaskCount; i++) {
             nodes.add(newNode());
-            definitions.add(aTestTask().withName("TestTask" + i).withPeriod(Duration.ofMillis(100L + 100L * i)).build());
+            definitions.add(aTestTask().withName("TestTask" + i).withPeriod(Duration.ofMillis(100L + (100L * i))).build());
         }
         final TestTask taskDefinition = aTestTask().withName("Testtask1").build();
         definitions.forEach(d -> {
@@ -231,7 +234,8 @@ public class TestUsecases extends TestBase {
         node2.run();
 
         int count = 0;
-        while (count++ < 20) {
+        while (count < 20) {
+            count++;
             logger.warn("Starting loop {} of 20", count);
             Thread.sleep(10000);
             logger.info("TestLoop {}", Instant.now());
@@ -247,6 +251,7 @@ public class TestUsecases extends TestBase {
             node2.run();
             outputSignals();
         }
+        count++;
         checkLogs();
     }
 }

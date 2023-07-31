@@ -60,9 +60,9 @@ public abstract class TestBase {
                 Signal s = JsonMarshaller.gson.fromJson(r.value(), Signal.class);
                 logger.info(String.format("TestUsecases: O: %4d TS: %10s, N: %20s TaskImpl: %10s Signal: %10s Time: %s Ref: %d",
                         r.offset(),Instant.ofEpochMilli(r.timestamp()).toString(),
-                        s.nodeProcThreadId,
-                        s.taskName,
-                        s.signal, s.timestamp, s.getReference()));
+                        s.getNodeProcThreadId(),
+                        s.getTaskName(),
+                        s.getSignal(), s.getTimestamp(), s.getReference()));
             } else {
                 logger.info(String.format("TestUsecases: O: %4d TS: %10s, J: %s",r.offset(),Instant.ofEpochMilli(r.timestamp()).toString(),  r.value()));
             }

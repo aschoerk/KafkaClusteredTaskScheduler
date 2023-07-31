@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -37,7 +36,7 @@ public class PendingHandler extends StoppableBase {
     private final NodeImpl node;
 
     private final Random random = new Random();
-    private int defaultWaitMillis = 10000;
+    private Duration defaultWaitMillis = 10000;
 
     /**
      * create the single PendingHandler for a node
@@ -60,7 +59,11 @@ public class PendingHandler extends StoppableBase {
         return task.getDefinition().getName() + "_" + "TaskStarter";
     }
 
-    public void setDefaultWaitMillis(final int defaultWaitMillisP) {
+    /**
+     * set the time the Pendinghandler may wait max
+     * @param defaultWaitMillisP
+     */
+    public void setDefaultWaitMillis(final Duration defaultWaitMillisP) {
         this.defaultWaitMillis = defaultWaitMillisP;
     }
 
@@ -70,7 +73,7 @@ public class PendingHandler extends StoppableBase {
      * @param e the pendingEntry to be scheduled
      */
     public void schedulePending(final PendingEntry e) {
-        logger.info("Node: {} Scheduling PendingEntry: {}", node.getUniqueNodeId(), e);
+        logger.trace("Node: {} Scheduling PendingEntry: {}", node.getUniqueNodeId(), e);
         removePending(e.getIdentifier(), false);
         pendingByIdentifier.put(e.getIdentifier(), e);
         sortedPending.add(e);
@@ -88,7 +91,7 @@ public class PendingHandler extends StoppableBase {
      * @param enforce     if true log an error if it is gnerally found but no entry is currently scheduled
      */
     private void removePending(final String pendingName, boolean enforce) {
-        logger.info("Removing pending {}", pendingName);
+        logger.trace("Removing pending {}", pendingName);
         PendingEntry e = pendingByIdentifier.get(pendingName);
         pendingByIdentifier.remove(pendingName);
         if(e != null) {
@@ -123,7 +126,7 @@ public class PendingHandler extends StoppableBase {
         if(!toWait.isNegative()) {
             try {
                 final long toWaitTime = toWait.toMillis();
-                logger.info("Waiting for notify or {} milliseconds", toWaitTime);
+                logger.trace("Waiting for notify or {} milliseconds", toWaitTime);
                 if(toWaitTime > 0) {
                     synchronized (this) {
                         this.wait(toWait.toMillis());
@@ -144,19 +147,20 @@ public class PendingHandler extends StoppableBase {
         Duration toWait;
         if(sortedPending.size() > 0) {
             PendingEntry nextTask = sortedPending.first();
+            logger.trace("Next task to be waited for: {} at: {}",nextTask.getIdentifier(), nextTask.getSchedulingTime().toString());
             toWait = Duration.between(node.getNow(), nextTask.getSchedulingTime()).plusMillis(1);
         }
         else {
-            toWait = Duration.ofMillis(defaultWaitMillis);
+            toWait = defaultWaitMillis;
         }
         return toWait;
     }
 
     private void selectAndExecute() {
-        while (sortedPending.size() > 0 && !sortedPending.first().getSchedulingTime().isAfter(node.getNow())) {
+        while ((sortedPending.size() > 0) && !sortedPending.first().getSchedulingTime().isAfter(node.getNow())) {
             PendingEntry pendingTask = sortedPending.first();
             sortedPending.remove(pendingTask);
-            logger.info("Found Pending: {}", pendingTask);
+            logger.trace("Found Pending: {}", pendingTask);
             try {
                 pendingTask.getPendingRunnable().run();
             } catch (Throwable t) {
@@ -191,7 +195,7 @@ public class PendingHandler extends StoppableBase {
      */
     public void scheduleInformationSender(final Instant nextCall) {
         final PendingEntry e = new PendingEntry(nextCall, "NodeHeartbeat", () -> {
-            NodeImpl nodeImpl = (NodeImpl) node;
+            NodeImpl nodeImpl = node;
             nodeImpl.sendNodeTaskInformation(true);
         });
         schedulePending(e);
@@ -204,12 +208,12 @@ public class PendingHandler extends StoppableBase {
      */
     public void scheduleNodeHeartBeat(final Instant nextCall) {
         final PendingEntry e = new PendingEntry(nextCall, "NodeHeartbeat", () -> {
-            NodeImpl nodeImpl = (NodeImpl) node;
-            if (nodeImpl.getSender().lastSendTimestamp.isBefore(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD))) {
+            NodeImpl nodeImpl = node;
+            if (nodeImpl.getSender().lastSendTimestamp.isBefore(Instant.now().minus(nodeImpl.getHeartBeatPeriod()))) {
                 nodeImpl.getSender().sendSignal(null, SignalEnum.NODEHEARTBEAT);
             }
             nodeImpl.getPendingHandler()
-                    .scheduleNodeHeartBeat(node.getNow().plus(nodeImpl.HEART_BEAT_PERIOD));
+                    .scheduleNodeHeartBeat(node.getNow().plus(nodeImpl.getHeartBeatPeriod()));
         });
         schedulePending(e);
     }
@@ -282,24 +286,27 @@ public class PendingHandler extends StoppableBase {
         schedulePending(e);
     }
 
+    /**
+     * Searches for Task claimed ir executed on other nodes of which nothing has been heard for some time.
+     */
     void scheduleTaskReviver() {
-        final PendingEntry e = new PendingEntry(Instant.now().plus(Duration.ofSeconds(5)), "TaskReviver" + node.getUniqueNodeId(), () -> {
-            logger.info("N: {} TaskReviver started", node.getUniqueNodeId());
-            if (node.lastMessageReceived != null && node.lastMessageReceived.isAfter(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD))) {
+        final PendingEntry e = new PendingEntry(Instant.now().plus(node.getContainer().getConfiguration().getReviverPeriod()), "TaskReviver" + node.getUniqueNodeId(), () -> {
+            logger.trace("N: {} TaskReviver started", node.getUniqueNodeId());
+            if ((node.lastMessageReceived != null) && node.lastMessageReceived.isAfter(Instant.now().minus(node.getHeartBeatPeriod()))) {
                 node.getNodeInformation().getTaskInformation().forEach(ti -> {
                     TaskImpl taskimpl = node.tasks.get(ti.getTaskName());
-                    if(ti.getState().equals(CLAIMED_BY_OTHER) || ti.getState().equals(HANDLING_BY_OTHER)) {
+                    if((ti.getState() == CLAIMED_BY_OTHER) || (ti.getState() == HANDLING_BY_OTHER)) {
                         final String owningNodeName = ti.getNodeName().get();
                         if(node.heartBeats.containsKey(owningNodeName)) {
                             if(node.heartBeats.get(owningNodeName)
-                                    .isBefore(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD.multipliedBy(10)))) {
+                                    .isBefore(Instant.now().minus(node.getHeartBeatPeriod().multipliedBy(10)))) {
                                 logger.info("N: {} Reviving {} supposed to run on {}", node.getUniqueNodeId(), ti.getTaskName(), owningNodeName);
                                 node.getSignalHandler().handleInternalSignal(taskimpl, REVIVING);
                                 logger.info("last signal from {} was: {}", owningNodeName, node.heartBeats.get(owningNodeName));
                             }
                         }
                         else {
-                            if(node.getStartTime().isBefore(Instant.now().minus(NodeImpl.HEART_BEAT_PERIOD.multipliedBy(3)))) {
+                            if(node.getStartTime().isBefore(Instant.now().minus(node.getHeartBeatPeriod().multipliedBy(3)))) {
                                 logger.info("N: {} Reviving {} supposed to run on {}", node.getUniqueNodeId(), ti.getTaskName(), owningNodeName);
                                 logger.info("no signal from {} since: {}", owningNodeName, node.getStartTime());
                                 node.getSignalHandler().handleInternalSignal(taskimpl, REVIVING);
@@ -321,14 +328,14 @@ public class PendingHandler extends StoppableBase {
      * @param threadName the name of the future executing the task. To be checked because it will change when the future is reused.
      * @param future     the future to be interrupted.
      */
-    public void scheduleInterupter(final TaskImpl task, final String threadName, final Future future) {
+    public void scheduleInterrupter(final TaskImpl task, final String threadName, final Future future) {
         Instant now = node.getNow();
         Instant nextCall = now.plus(task.getDefinition().getMaxDuration());
         final PendingEntry e = new PendingEntry(nextCall, task.getDefinition().getName() + "_" + threadName, new Runnable() {
             @Override
             public void run() {
                 if(!future.isDone() && !future.isCancelled()) {
-                    logger.info("N: {} T: {}/{} Interupting future", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState());
+                    logger.trace("N: {} T: {}/{} Interrupting future", node.getUniqueNodeId(), task.getDefinition().getName(), task.getLocalState());
                     future.cancel(true);
                 }
             }
