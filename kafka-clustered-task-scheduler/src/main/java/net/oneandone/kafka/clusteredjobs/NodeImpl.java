@@ -40,42 +40,35 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     private static final Logger logger = LoggerFactory.getLogger(NodeImpl.class);
 
     private static final AtomicInteger nodeCounter = new AtomicInteger(0);
-    private final NodeFactory nodeFactory;
-
-    private final ArrayList<Stoppable> stoppables = new ArrayList<>();
-
-    private Clock clock = Clock.systemDefaultZone();
-
-    private final int nodeId;
-
     final String syncTopic;
-    Logger log = LoggerFactory.getLogger(NodeImpl.class);
-
+    final String bootstrapServers;
+    private final NodeFactory nodeFactory;
+    private final ArrayList<Stoppable> stoppables = new ArrayList<>();
+    private final int nodeId;
     private final String hostname;
     private final String processName;
-    private Future signalsReceivingThread;
-    private Future pendingHandlerThread;
-    final String bootstrapServers;
-
-    ConcurrentHashMap<String, TaskImpl> tasks = new ConcurrentHashMap<>();
-
-    Integer taskPartition = null;
-    private volatile Sender sender;
-    private volatile SignalHandler signalHandler;
-    private volatile PendingHandler pendingHandler;
-
     private final Set<Future> handlerThreads = new HashSet<Future>();
     private final Container container;
     private final NodeTaskInformationHandler nodeTaskInformationHandler;
+    private final Instant startTime = Instant.now();
+    Logger log = LoggerFactory.getLogger(NodeImpl.class);
+    ConcurrentHashMap<String, TaskImpl> tasks = new ConcurrentHashMap<>();
+    Integer taskPartition = null;
+    Map<String, Instant> heartBeats = new ConcurrentHashMap<>();
+    Instant lastMessageReceived;
+    private Clock clock = Clock.systemDefaultZone();
+    private Future signalsReceivingThread;
+    private Future pendingHandlerThread;
+    private volatile Sender sender;
+    private volatile SignalHandler signalHandler;
+    private volatile PendingHandler pendingHandler;
     private String lastNodeTaskInformation;
     private SignalsWatcher signalsWatcher;
-    Map<String, Instant> heartBeats = new ConcurrentHashMap<>();
-    private final Instant startTime = Instant.now();
-    Instant lastMessageReceived;
 
     /**
      * create a Node instance capable of executing clustered periodic tasks
-     * @param container functionality provided by the container running the node
+     *
+     * @param container   functionality provided by the container running the node
      * @param nodeFactory the factory to be used to create subcomponents of node.
      */
     public NodeImpl(Container container, NodeFactory nodeFactory) {
@@ -95,6 +88,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * signifies the period in which a node which did not send messages otherwise is to sent a heartbeat signal via kafka
+     *
      * @return the period in which a node which did not send messages otherwise is to sent a heartbeat signal via kafka
      */
     public Duration getHeartBeatPeriod() {
@@ -103,6 +97,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * current time as calculated by clock of node
+     *
      * @return current time as calculated by clock of node
      */
     @Override
@@ -112,6 +107,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * return the runtime-information of a registered TaskImpl
+     *
      * @param taskName the name of the task being requested
      * @return the runtime-information of a registered TaskImpl
      */
@@ -122,6 +118,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * return the container the Node is running
+     *
      * @return the container the Node is running
      */
     @Override
@@ -131,6 +128,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * create the information about all tasks registered on the node
+     *
      * @return the information about all tasks registered on the node
      */
     @Override
@@ -183,11 +181,11 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
         synchronized (this) {
             try {
-                if (signalsWatcher.getWatcherStarting() == null) {
+                if(signalsWatcher.getWatcherStarting() == null) {
                     logger.info("Going to wait for SignalWatcher Topic consumer init.");
                     do {
-                            this.wait();
-                    } while(signalsWatcher.getWatcherStarting() == null);
+                        this.wait();
+                    } while (signalsWatcher.getWatcherStarting() == null);
                     logger.info("End of   wait for SignalWatcher Topic consumer init.");
                 }
             } catch (InterruptedException e) {
@@ -201,6 +199,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * register a task to be scheduled on node
+     *
      * @param taskDefinition the description how the task is to be executed
      * @return the runtime-representation of the registered task.
      */
@@ -233,13 +232,14 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
      * @return the thread for the runnable
      */
     public Future newHandlerThread(final Runnable runnable) {
-        Future result = getContainer().submitInThread(runnable);
+        Future result = getContainer().submitClusteredTaskThread(runnable);
         handlerThreads.add(result);
         return result;
     }
 
     /**
      * dispose a thread previously created by newHandlerThread
+     *
      * @param future the future representing the Thread to be disposed
      */
     public void disposeHandlerThread(final Future future) {
@@ -248,6 +248,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * return the id unique in the cluster of task executing nodes
+     *
      * @return the id unique in the cluster of task executing/scheduling nodes
      */
     @Override
@@ -262,37 +263,42 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     @Override
     public void shutdown() {
         logger.info("Killing node: {}", getUniqueNodeId());
-        stoppables.forEach(s -> s.shutdown());
-        stoppables.clear();
         tasks.entrySet().forEach(e -> {
             TaskImpl t = e.getValue();
-            if ((t.getLocalState() == StateEnum.HANDLING_BY_NODE) || (t.getLocalState() == StateEnum.CLAIMED_BY_NODE)) {
+            if((t.getLocalState() == StateEnum.HANDLING_BY_NODE) || (t.getLocalState() == StateEnum.CLAIMED_BY_NODE)) {
                 getSignalHandler().handleInternalSignal(e.getValue(), SignalEnum.UNCLAIM_I);
             }
         });
         try {
+            getSignalsWatcher().shutdown();
+            getPendingHandler().shutdown();
             Thread.sleep(NodeImpl.CONSUMER_POLL_TIME + 1000);
+
+            while (!pendingHandlerThread.isDone()) {
+                Thread.sleep(100);
+            }
+            while (!signalsReceivingThread.isDone() && !signalsReceivingThread.isCancelled()) {
+                Thread.sleep(100);
+            }
+            for (Future t : handlerThreads) {
+                while (!t.isDone()) {
+                    t.cancel(true);
+                }
+            }
+            logger.info("Killed  node: {}", getUniqueNodeId());
+
+            getSender().shutdown();
+            stoppables.forEach(s -> s.shutdown());
+            stoppables.clear();
         } catch (InterruptedException e) {
             throw new KctmException("During shutdown interrupted", e);
         }
-        while (!pendingHandlerThread.isDone()) {
-            pendingHandlerThread.cancel(true);
-        }
-        while (!signalsReceivingThread.isDone()) {
-            signalsReceivingThread.cancel(true);
-        }
-        for (Future t : handlerThreads) {
-            while (!t.isDone()) {
-                t.cancel(true);
-            }
-        }
-        getSender().getSyncProducer().close();
-        logger.info("Killed  node: {}", getUniqueNodeId());
     }
 
 
     /**
      * return sender capable of sending tasks to the sync-topic
+     *
      * @return sender capabable of sending tasks to the sync-topic
      */
     public Sender getSender() {
@@ -309,7 +315,8 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * return the object dispatching the signals into the Statemachine according to the state of the task
-     * @return  the object dispatching the signals into the Statemachine according to the state of the task
+     *
+     * @return the object dispatching the signals into the Statemachine according to the state of the task
      */
     public SignalHandler getSignalHandler() {
         if(signalHandler == null) {
@@ -324,6 +331,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * return the object scheduling tasks in the future
+     *
      * @return the object scheduling tasks in the future
      */
     public PendingHandler getPendingHandler() {
@@ -340,12 +348,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
     /**
      * change clock used for timestamps. be aware, that calculated durations are awaited by the wait-function of
      * Thread and Object
+     *
      * @param clockP the clock to be used
      */
     void setClock(final Clock clockP) {
         this.clock = clockP;
     }
-
 
 
     boolean threadsRunning() {
@@ -357,7 +365,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         Gson gson = builder.create();
         final String currentNodeTaskInformation = JsonMarshaller.gson.toJson(getNodeInformation());
         // final String currentNodeTaskInformation = JsonMarshaller.jsonXStream.toXML(getNodeInformation());
-        if (!onlyIfChanged || !currentNodeTaskInformation.equals(lastNodeTaskInformation)) {
+        if(!onlyIfChanged || !currentNodeTaskInformation.equals(lastNodeTaskInformation)) {
             lastNodeTaskInformation = currentNodeTaskInformation;
             getSender().getSyncProducer().send(new ProducerRecord(syncTopic, getUniqueNodeId(),
                     currentNodeTaskInformation));
@@ -367,6 +375,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * get the object capable of handling initializing information for newly to be started node
+     *
      * @return the object capable of handling initiatizing information for newly to be started node
      */
     public NodeTaskInformationHandler getNodeTaskInformationHandler() {
@@ -379,11 +388,12 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * set the timestamp of the last time a signal arrived from a specfic clusternode
+     *
      * @param nodeProcThreadId the name of the clusternode
-     * @param timestamp the timestamp, when the last signal arrived from a specific node
+     * @param timestamp        the timestamp, when the last signal arrived from a specific node
      */
     public void lastSignalFromNode(final String nodeProcThreadId, final Instant timestamp) {
-        if ((this.lastMessageReceived == null) || this.lastMessageReceived.isBefore(timestamp)) {
+        if((this.lastMessageReceived == null) || this.lastMessageReceived.isBefore(timestamp)) {
             this.lastMessageReceived = timestamp;
         }
         this.heartBeats.put(nodeProcThreadId, timestamp);
@@ -391,6 +401,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
     /**
      * the timestamp, the node was created
+     *
      * @return the timestamp, the node was created
      */
     public Instant getStartTime() {

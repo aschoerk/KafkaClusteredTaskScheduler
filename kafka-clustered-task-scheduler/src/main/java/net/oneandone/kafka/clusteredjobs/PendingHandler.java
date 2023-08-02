@@ -36,7 +36,7 @@ public class PendingHandler extends StoppableBase {
     private final NodeImpl node;
 
     private final Random random = new Random();
-    private Duration defaultWaitMillis = 10000;
+    private Duration defaultWaitMillis = Duration.ofMillis(10000);
 
     /**
      * create the single PendingHandler for a node
@@ -140,6 +140,14 @@ public class PendingHandler extends StoppableBase {
                     logger.info("PendingHandler N: {} got interrupted {}", node.getUniqueNodeId(), e);
                 }
             }
+        }
+    }
+
+    @Override
+    public void shutdown() {
+        super.shutdown();
+        synchronized (this) {
+            this.notify();
         }
     }
 
@@ -292,6 +300,7 @@ public class PendingHandler extends StoppableBase {
     void scheduleTaskReviver() {
         final PendingEntry e = new PendingEntry(Instant.now().plus(node.getContainer().getConfiguration().getReviverPeriod()), "TaskReviver" + node.getUniqueNodeId(), () -> {
             logger.trace("N: {} TaskReviver started", node.getUniqueNodeId());
+            // make sure the node has connection to kafka
             if ((node.lastMessageReceived != null) && node.lastMessageReceived.isAfter(Instant.now().minus(node.getHeartBeatPeriod()))) {
                 node.getNodeInformation().getTaskInformation().forEach(ti -> {
                     TaskImpl taskimpl = node.tasks.get(ti.getTaskName());
@@ -299,7 +308,7 @@ public class PendingHandler extends StoppableBase {
                         final String owningNodeName = ti.getNodeName().get();
                         if(node.heartBeats.containsKey(owningNodeName)) {
                             if(node.heartBeats.get(owningNodeName)
-                                    .isBefore(Instant.now().minus(node.getHeartBeatPeriod().multipliedBy(10)))) {
+                                    .isBefore(Instant.now().minus(node.getHeartBeatPeriod().multipliedBy(3)))) {
                                 logger.info("N: {} Reviving {} supposed to run on {}", node.getUniqueNodeId(), ti.getTaskName(), owningNodeName);
                                 node.getSignalHandler().handleInternalSignal(taskimpl, REVIVING);
                                 logger.info("last signal from {} was: {}", owningNodeName, node.heartBeats.get(owningNodeName));

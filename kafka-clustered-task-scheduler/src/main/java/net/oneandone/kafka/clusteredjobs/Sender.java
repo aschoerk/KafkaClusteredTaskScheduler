@@ -1,5 +1,6 @@
 package net.oneandone.kafka.clusteredjobs;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -76,8 +77,14 @@ public class Sender extends StoppableBase {
         if (!doShutdown()) {
             getSyncProducer().send(new ProducerRecord(syncTopic, node.getUniqueNodeId(),
                     JsonMarshaller.gson.toJson(toSend)));
-            syncProducer.flush();
         }
+    }
+
+    @Override
+    public void shutdown() {
+        super.shutdown();
+        getSyncProducer().flush();
+        getSyncProducer().close(Duration.ofSeconds(5));
     }
 
     KafkaProducer getSyncProducer() {

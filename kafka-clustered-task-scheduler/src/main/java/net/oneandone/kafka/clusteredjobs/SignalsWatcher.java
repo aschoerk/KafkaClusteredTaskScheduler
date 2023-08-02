@@ -164,6 +164,7 @@ public class SignalsWatcher extends StoppableBase {
         initThreadName(this.getClass().getSimpleName());
 
         final OffsetContainer oC = new OffsetContainer();
+        Instant starting = node.getNow();
 
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(getSyncingConsumerConfig(node.bootstrapServers, node.getUniqueNodeId()))) {
             setRunning();
@@ -176,7 +177,7 @@ public class SignalsWatcher extends StoppableBase {
             ConsumerRecords<String, String> records;
             while (!doShutdown()) {
                 records = consumer.poll(Duration.ofMillis(CONSUMER_POLL_TIME));
-                if(records.count() > 0) {
+                if(!doShutdown() && records.count() > 0) {
                     logger.debug("N: {} found {} records", node.getUniqueNodeId(), records.count());
                     records.forEach(r -> {
                         if(oC.offsetSet1.contains(r.offset()) || oC.offsetSet2.contains(r.offset())) {
@@ -211,7 +212,7 @@ public class SignalsWatcher extends StoppableBase {
                                 Signal signal = (Signal) event;
                                 signal.setCurrentOffset(r.offset());
                                 TaskImpl task = node.tasks.get(signal.getTaskName());
-                                node.lastSignalFromNode(signal.getNodeProcThreadId(), Instant.ofEpochMilli(r.timestamp()));
+                                node.lastSignalFromNode(signal.getNodeProcThreadId(), signal.getTimestamp());
 
                                 if((task == null) && (signal.getSignal() == SignalEnum.DO_INFORMATION_SEND)) {
                                     if (!signal.equalNode(node)) {
@@ -234,7 +235,9 @@ public class SignalsWatcher extends StoppableBase {
                                     lastSignalPerTaskAndNode.get(signal.getTaskName()).put(signal.getNodeProcThreadId(), signal);
                                     logger.info("SignalHandler handle signal {} from {} for TaskImpl {}/{}", signal.getSignal(),
                                             signal.getNodeProcThreadId(), task.getDefinition(), task.getLocalState());
-                                    node.getSignalHandler().handleSignal(task, signal);
+                                    if (signal.getSignal() != SignalEnum.UNCLAIMED || signal.getTimestamp().isAfter(starting)) {
+                                        node.getSignalHandler().handleSignal(task, signal);
+                                    }
                                 }
                                 else {
                                     logger.info("Received Signal from unknown task {}", signal);
@@ -247,7 +250,6 @@ public class SignalsWatcher extends StoppableBase {
                                 nodeInformation.setArrivalTime(node.getNow());
                                 lastNodeInformation.put(nodeInformation.getName(), nodeInformation);
                                 node.getNodeTaskInformationHandler().handle(nodeInformation);
-                                node.lastSignalFromNode(nodeInformation.getName(), Instant.ofEpochMilli(r.timestamp()));
                             }
                             else {
                                 throw new KctmException("Unexpected event of type: " + r.value() + " on synctopic");

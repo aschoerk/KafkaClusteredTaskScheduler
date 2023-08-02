@@ -67,7 +67,7 @@ public class TaskImpl implements net.oneandone.kafka.clusteredjobs.api.Task {
     public void setLocalState(final StateEnum stateToSet, final String nodeName) {
         if (logger.isInfoEnabled()) {
             logger.info("N: {} T: {} Setting State: {} from state: {} because of node: {}", node.getUniqueNodeId(),
-                    taskDefinition.getName(), stateToSet, localState, this.getCurrentExecutor().orElse("null"));
+                    taskDefinition.getName(), stateToSet, localState, this.getCurrentExecutor().orElse(nodeName));
         }
         if ((stateToSet == HANDLING_BY_OTHER) || (stateToSet == StateEnum.CLAIMED_BY_OTHER)) {
             currentExecutor = nodeName;

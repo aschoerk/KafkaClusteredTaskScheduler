@@ -20,12 +20,15 @@ public class TestContainer implements Container {
     private final String syncTopicName;
     private final String bootstrapServers;
 
-    BlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
+    BlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>(50);
+
+
     ExecutorService executorService;
 
     public TestContainer(final String syncTopicName, final String bootstrapServers) {
         this.syncTopicName = syncTopicName;
         this.bootstrapServers = bootstrapServers;
+
         executorService = new ThreadPoolExecutor(20, 50, 10000,
                 TimeUnit.MILLISECONDS, workQueue);
     }

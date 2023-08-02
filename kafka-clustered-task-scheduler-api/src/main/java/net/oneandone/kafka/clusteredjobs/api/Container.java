@@ -25,7 +25,7 @@ public interface Container {
      * @param runnable The runnable to execute when starting the thread
      * @return the thread created in the container environment
      */
-    Future submitInThread(Runnable runnable);
+    Future submitClusteredTaskThread(Runnable runnable);
 
     /**
      * Allows to use the Container-Threadpooling.
