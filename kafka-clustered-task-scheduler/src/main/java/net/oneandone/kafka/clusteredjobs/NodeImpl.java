@@ -151,7 +151,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
         }
 
         stoppables.add(getPendingHandler());
-        pendingHandlerThread = getContainer().submitInLongRunningThread(() ->
+        pendingHandlerThread = getContainer().submitLongRunning(() ->
                 {
                     getPendingHandler().run();
                     logger.info("stopped");
@@ -171,7 +171,7 @@ public class NodeImpl extends StoppableBase implements net.oneandone.kafka.clust
 
         signalsWatcher = nodeFactory.createSignalsWatcher(this);
         stoppables.add(signalsWatcher);
-        signalsReceivingThread = getContainer().submitInLongRunningThread(() ->
+        signalsReceivingThread = getContainer().submitLongRunning(() ->
                 {
                     signalsWatcher.run();
                     logger.info("stopped");

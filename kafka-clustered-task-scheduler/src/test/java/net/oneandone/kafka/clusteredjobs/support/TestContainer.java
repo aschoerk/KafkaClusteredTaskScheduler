@@ -44,11 +44,11 @@ public class TestContainer implements Container {
     }
 
     @Override
-    public Future submitInThread(Runnable runnable) {
+    public Future submitClusteredTaskThread(Runnable runnable) {
         return executorService.submit(runnable);
     }
     @Override
-    public Future submitInLongRunningThread(Runnable runnable) {
+    public Future submitLongRunning(Runnable runnable) {
         return executorService.submit(runnable);
     }
     @Override

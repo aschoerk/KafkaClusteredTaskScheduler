@@ -32,7 +32,7 @@ public interface Container {
      * @param runnable The runnable to execute when starting the thread
      * @return the thread created in the container environment
      */
-    Future submitInLongRunningThread(Runnable runnable);
+    Future submitLongRunning(Runnable runnable);
 
 
     default Configuration getConfiguration() { return new Configuration() {
