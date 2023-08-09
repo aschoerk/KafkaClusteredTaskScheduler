@@ -27,6 +27,9 @@ public abstract class TestBase {
     void beforeEachTestBase() throws Exception {
         logger.info("Starting Kafka");
         testResources.startKafka();
+        InterceptingAppender.countErrors.set(0);
+        InterceptingAppender.countWarnings.set(0);
+        InterceptingAppender.countElse.set(0);
     }
 
     @AfterEach

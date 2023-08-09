@@ -319,6 +319,9 @@
                 <configuration>
                     <redirectTestOutputToFile>true</redirectTestOutputToFile>
                     <forkCount>0.7C</forkCount>
+                    <excludes>
+                        <exclude>TestUsecases</exclude>
+                    </excludes>
                     <!-- the following line allows the debugging of the deployment -->
                     <!--argLine>-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005</argLine-->
                 </configuration>

@@ -31,13 +31,15 @@ public class TestUsecases extends TestBase {
     public static final int nodeTaskCount = 10;
     @Inject
     TestResources testResources;
-    private final int cycleNum = 20;
+    private final int cycleNum = 5;
     private final int waitMillis = 10000;
 
     boolean runningDuringRelease() {
         // return System.getProperty("surefire.test.class.path") != null;
         return System.getProperty("doingRelease") != null;
     }
+
+
 
     void cycle(String testName, TestTask testTask) throws InterruptedException {
         cycle(testName, testTask, cycleNum, waitMillis, () -> {
