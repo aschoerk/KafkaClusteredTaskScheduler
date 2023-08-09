@@ -6,7 +6,7 @@
     <artifactId>kafka-clustered-task-scheduler-parent</artifactId>
     <packaging>pom</packaging>
     <name>kafka-clustered-task-scheduler-parent</name>
-    <version>0.0.6-SNAPSHOT</version>
+    <version>0.0.7-SNAPSHOT</version>
 
     <description>The parent pom for kafka-clustered-task-scheduler</description>
 
